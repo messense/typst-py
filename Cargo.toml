@@ -8,7 +8,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.18.1"
+pyo3 = { version = "0.18.1", features = ["abi3-py37"] }
 typst = { git = "https://github.com/typst/typst.git", branch = "main" }
 typst-library = { git = "https://github.com/typst/typst.git", branch = "main" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
