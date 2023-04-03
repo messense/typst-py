@@ -19,10 +19,12 @@ import typst
 
 
 compiler = typst.Compiler(".")
-compiler.compile("hello.typ")
+# Compile `hello.typ` to PDF and save as `hello.pdf`
+compiler.compile("hello.typ", output="hello.pdf")
 
 # Or use the shortcut `compile` function
-typst.compile("hello.typ")
+# and return PDF content as bytes
+pdf_bytes = typst.compile("hello.typ")
 ```
 
 ## License
