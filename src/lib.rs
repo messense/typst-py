@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 
 use compiler::SystemWorld;
 
@@ -38,17 +39,12 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    fn compile(&mut self, input: PathBuf, output: Option<PathBuf>) -> PyResult<()> {
-        let output = match output {
-            Some(path) => path,
-            None => input.with_extension("pdf"),
-        };
+    fn compile(&mut self, input: PathBuf) -> PyResult<Vec<u8>> {
         let buffer = self
             .world
             .compile(&input)
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
-        std::fs::write(output, buffer)?;
-        Ok(())
+        Ok(buffer)
     }
 }
 
@@ -80,8 +76,14 @@ impl Compiler {
         py: Python<'_>,
         input: PathBuf,
         output: Option<PathBuf>,
-    ) -> PyResult<()> {
-        py.allow_threads(|| self.compile(input, output))
+    ) -> PyResult<PyObject> {
+        let pdf_bytes = py.allow_threads(|| self.compile(input))?;
+        if let Some(output) = output {
+            std::fs::write(output, pdf_bytes)?;
+            Ok(py.None())
+        } else {
+            Ok(PyBytes::new(py, &pdf_bytes).into())
+        }
     }
 }
 
@@ -94,7 +96,7 @@ fn compile(
     output: Option<PathBuf>,
     root: Option<PathBuf>,
     font_paths: Vec<PathBuf>,
-) -> PyResult<()> {
+) -> PyResult<PyObject> {
     let root = if let Some(root) = root {
         root.canonicalize()?
     } else if let Some(dir) = input
@@ -111,9 +113,14 @@ fn compile(
     py.allow_threads(move || {
         // Create the world that serves sources, fonts and files.
         let mut compiler = Compiler::new(root, font_paths)?;
-        compiler.compile(input, output)
-    })?;
-    Ok(())
+        let pdf_bytes = compiler.compile(input)?;
+        if let Some(output) = output {
+            std::fs::write(output, pdf_bytes)?;
+            Ok(Python::with_gil(|py| py.None()))
+        } else {
+            Ok(Python::with_gil(|py| PyBytes::new(py, &pdf_bytes).into()))
+        }
+    })
 }
 
 /// Python binding to typst
