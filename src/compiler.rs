@@ -44,28 +44,6 @@ struct PathSlot {
     buffer: OnceCell<FileResult<Buffer>>,
 }
 
-impl SystemWorld {
-    pub fn new(root: PathBuf, font_paths: &[PathBuf]) -> Self {
-        let mut searcher = FontSearcher::new();
-        searcher.search_system();
-
-        for path in font_paths {
-            searcher.search_dir(path)
-        }
-
-        Self {
-            root,
-            library: Prehashed::new(typst_library::build()),
-            book: Prehashed::new(searcher.book),
-            fonts: searcher.fonts,
-            hashes: RefCell::default(),
-            paths: RefCell::default(),
-            sources: FrozenVec::new(),
-            main: SourceId::detached(),
-        }
-    }
-}
-
 impl World for SystemWorld {
     fn root(&self) -> &Path {
         &self.root
@@ -117,6 +95,29 @@ impl World for SystemWorld {
 }
 
 impl SystemWorld {
+    pub fn new(root: PathBuf, font_paths: &[PathBuf], font_files: &[PathBuf]) -> Self {
+        let mut searcher = FontSearcher::new();
+        searcher.search_system();
+
+        for path in font_paths {
+            searcher.search_dir(path);
+        }
+        for path in font_files {
+            searcher.search_file(path);
+        }
+
+        Self {
+            root,
+            library: Prehashed::new(typst_library::build()),
+            book: Prehashed::new(searcher.book),
+            fonts: searcher.fonts,
+            hashes: RefCell::default(),
+            paths: RefCell::default(),
+            sources: FrozenVec::new(),
+            main: SourceId::detached(),
+        }
+    }
+
     fn slot(&self, path: &Path) -> FileResult<RefMut<PathSlot>> {
         let mut hashes = self.hashes.borrow_mut();
         let hash = match hashes.get(path).cloned() {
