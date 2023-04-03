@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
 
 use compiler::SystemWorld;
@@ -45,7 +46,9 @@ impl Compiler {
         let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
         let mut default_fonts = Vec::new();
         for entry in walkdir::WalkDir::new(resource_path.join("fonts")) {
-            let path = entry.unwrap().into_path();
+            let path = entry
+                .map_err(|err| PyIOError::new_err(err.to_string()))?
+                .into_path();
             let Some(extension) = path.extension() else { continue };
             if extension == "ttf" || extension == "otf" {
                 default_fonts.push(path);
@@ -62,7 +65,10 @@ impl Compiler {
             Some(path) => path,
             None => input.with_extension("pdf"),
         };
-        let buffer = self.world.compile(&input).unwrap();
+        let buffer = self
+            .world
+            .compile(&input)
+            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         std::fs::write(output, buffer)?;
         Ok(())
     }

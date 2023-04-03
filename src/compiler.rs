@@ -162,7 +162,23 @@ impl SystemWorld {
             }
 
             // Format diagnostics.
-            Err(_errors) => Err("compile error".into()),
+            Err(errors) => {
+                let mut error_msg = "compile error:\n".to_string();
+                for error in *errors {
+                    let range = error.range(self);
+                    error_msg.push_str(&format!("{}:{} {}", range.start, range.end, error.message));
+                    // stacktrace
+                    if !error.trace.is_empty() {
+                        error_msg.push_str("stacktrace:\n");
+                    }
+                    for point in error.trace {
+                        let range = self.source(point.span.source()).range(point.span);
+                        let message = point.v.to_string();
+                        error_msg.push_str(&format!("  {}:{} {}", range.start, range.end, message));
+                    }
+                }
+                Err(error_msg.into())
+            }
         }
     }
 }
