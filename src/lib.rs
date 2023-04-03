@@ -37,6 +37,21 @@ pub struct Compiler {
     world: compiler::SystemWorld,
 }
 
+impl Compiler {
+    fn compile(&mut self, input: PathBuf, output: Option<PathBuf>) -> PyResult<()> {
+        let output = match output {
+            Some(path) => path,
+            None => input.with_extension("pdf"),
+        };
+        let buffer = self
+            .world
+            .compile(&input)
+            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
+        std::fs::write(output, buffer)?;
+        Ok(())
+    }
+}
+
 #[pymethods]
 impl Compiler {
     /// Create a new typst compiler instance
@@ -59,18 +74,14 @@ impl Compiler {
     }
 
     /// Compile a typst file to PDF
-    #[pyo3(signature = (input, output = None))]
-    fn compile(&mut self, input: PathBuf, output: Option<PathBuf>) -> PyResult<()> {
-        let output = match output {
-            Some(path) => path,
-            None => input.with_extension("pdf"),
-        };
-        let buffer = self
-            .world
-            .compile(&input)
-            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
-        std::fs::write(output, buffer)?;
-        Ok(())
+    #[pyo3(name = "compile", signature = (input, output = None))]
+    fn py_compile(
+        &mut self,
+        py: Python<'_>,
+        input: PathBuf,
+        output: Option<PathBuf>,
+    ) -> PyResult<()> {
+        py.allow_threads(|| self.compile(input, output))
     }
 }
 
