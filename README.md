@@ -20,6 +20,9 @@ import typst
 
 compiler = typst.Compiler(".")
 compiler.compile("hello.typ")
+
+# Or use the shortcut `compile` function
+typst.compile("hello.typ")
 ```
 
 ## License
