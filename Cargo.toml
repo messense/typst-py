@@ -15,9 +15,8 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.18.1", features = ["abi3-py37"] }
 typst = { git = "https://github.com/typst/typst.git", branch = "main" }
 typst-library = { git = "https://github.com/typst/typst.git", branch = "main" }
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 comemo = "0.2"
-dirs = "4"
+dirs = "5"
 elsa = "1.7"
 memmap2 = "0.5"
 once_cell = "1"
