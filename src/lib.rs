@@ -85,7 +85,7 @@ fn compile(
     font_paths: Vec<PathBuf>,
 ) -> PyResult<()> {
     let root = if let Some(root) = root {
-        root
+        root.canonicalize()?
     } else if let Some(dir) = input
         .canonicalize()
         .ok()
