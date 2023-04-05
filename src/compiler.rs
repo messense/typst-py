@@ -240,14 +240,16 @@ impl FontSearcher {
         self.search_dir("/System/Library/Fonts");
 
         // Downloadable fonts, location varies on major macOS releases
-        for entry in walkdir::WalkDir::new("/System/Library/AssetsV2").max_depth(1) {
-            let Ok(entry) = entry else { continue };
-            let Some(filename) = entry.path().file_name() else { continue };
-            if filename
-                .to_string_lossy()
-                .starts_with("com_apple_MobileAsset_Font")
-            {
-                self.search_dir(entry.path());
+        if let Ok(dir) = fs::read_dir("/System/Library/AssetsV2") {
+            for entry in dir {
+                let Ok(entry) = entry else { continue };
+                if entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("com_apple_MobileAsset_Font")
+                {
+                    self.search_dir(entry.path());
+                }
             }
         }
 
