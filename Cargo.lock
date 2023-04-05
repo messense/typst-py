@@ -49,9 +49,9 @@ checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "biblatex"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bc17a7f4d461f93f5dbbae4c961746cb4aafb5c6c1a61089a86836614932a3c"
+checksum = "cc9fd60378277e44cd400ec5f35e768ce0d5a63d8d18ac7b1a9231196251dae5"
 dependencies = [
  "chrono",
  "numerals",
@@ -311,9 +311,9 @@ checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
 name = "hayagriva"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55fc197906e4c8f799311502776bd69f8b8a50cb26173ef915d87384786d181e"
+checksum = "d8a21ff266f0b113789bbf4a27da16330315eebbd7df8e844f95d29f92ad556d"
 dependencies = [
  "biblatex",
  "chrono",
@@ -434,9 +434,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.140"
+version = "0.2.141"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99227334921fae1a979cf0bfdfcc6b3e5ce376ef57e16fb6fb3ea2ed6095f80c"
+checksum = "3304a64d199bb964be99741b7a14d26972741915b3649639149b2479bb46f4b5"
 
 [[package]]
 name = "linked-hash-map"
@@ -1145,8 +1145,8 @@ checksum = "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a"
 
 [[package]]
 name = "typst"
-version = "0.0.0"
-source = "git+https://github.com/typst/typst.git?branch=main#37eededc9d9a5ff1c0d5ccdd7a348268cfd40735"
+version = "0.1.0"
+source = "git+https://github.com/typst/typst.git?tag=v0.1#b3faef4b80a674294091066e20501e3a5d0f6103"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -1182,8 +1182,8 @@ dependencies = [
 
 [[package]]
 name = "typst-library"
-version = "0.0.0"
-source = "git+https://github.com/typst/typst.git?branch=main#37eededc9d9a5ff1c0d5ccdd7a348268cfd40735"
+version = "0.1.0"
+source = "git+https://github.com/typst/typst.git?tag=v0.1#b3faef4b80a674294091066e20501e3a5d0f6103"
 dependencies = [
  "comemo",
  "csv",
@@ -1212,8 +1212,8 @@ dependencies = [
 
 [[package]]
 name = "typst-macros"
-version = "0.0.0"
-source = "git+https://github.com/typst/typst.git?branch=main#37eededc9d9a5ff1c0d5ccdd7a348268cfd40735"
+version = "0.1.0"
+source = "git+https://github.com/typst/typst.git?tag=v0.1#b3faef4b80a674294091066e20501e3a5d0f6103"
 dependencies = [
  "heck",
  "proc-macro2",
