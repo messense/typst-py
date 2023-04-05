@@ -1224,7 +1224,7 @@ dependencies = [
 
 [[package]]
 name = "typst-py"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "comemo",
  "dirs",
