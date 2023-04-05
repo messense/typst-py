@@ -238,8 +238,19 @@ impl FontSearcher {
     fn search_system(&mut self) {
         self.search_dir("/Library/Fonts");
         self.search_dir("/System/Library/Fonts");
-        self.search_dir("/System/Library/AssetsV2/com_apple_MobileAsset_Font6");
-        self.search_dir("/System/Library/AssetsV2/com_apple_MobileAsset_Font7");
+
+        // Downloadable fonts, location varies on major macOS releases
+        for entry in walkdir::WalkDir::new("/System/Library/AssetsV2").max_depth(1) {
+            let Ok(entry) = entry else { continue };
+            let Some(filename) = entry.path().file_name() else { continue };
+            if filename
+                .to_string_lossy()
+                .starts_with("com_apple_MobileAsset_Font")
+            {
+                self.search_dir(entry.path());
+            }
+        }
+
         self.search_dir("/Network/Library/Fonts");
 
         if let Some(dir) = dirs::font_dir() {
