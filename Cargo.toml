@@ -13,8 +13,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.18.1", features = ["abi3-py37"] }
-typst = { git = "https://github.com/typst/typst.git", tag = "v0.1" }
-typst-library = { git = "https://github.com/typst/typst.git", tag = "v0.1" }
+typst = { git = "https://github.com/typst/typst.git", tag = "v0.1.0" }
+typst-library = { git = "https://github.com/typst/typst.git", tag = "v0.1.0" }
 comemo = "0.2"
 dirs = "5"
 elsa = "1.7"

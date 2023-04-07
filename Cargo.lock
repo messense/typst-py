@@ -224,9 +224,9 @@ checksum = "e60e2840fbfc397c7972b11a6e6bd99a0248921cc1e31f293c5f6c5ac24831da"
 
 [[package]]
 name = "elsa"
-version = "1.8.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f74077c3c3aedb99a2683919698285596662518ea13e5eedcf8bdd43b0d0453b"
+checksum = "b5e0aca8dce8856e420195bd13b6a64de3334235ccc9214e824b86b12bf26283"
 dependencies = [
  "stable_deref_trait",
 ]
@@ -274,9 +274,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.8"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c05aeb6a22b8f62540c194aac980f2115af067bfe15a0734d7277a768d396b31"
+checksum = "c85e1d9ab2eadba7e5040d4e09cbd6d072b76a557ad64e797c2cb9d4da21d7e4"
 dependencies = [
  "cfg-if",
  "libc",
@@ -1146,7 +1146,7 @@ checksum = "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a"
 [[package]]
 name = "typst"
 version = "0.1.0"
-source = "git+https://github.com/typst/typst.git?tag=v0.1#b3faef4b80a674294091066e20501e3a5d0f6103"
+source = "git+https://github.com/typst/typst.git?tag=v0.1.0#b3faef4b80a674294091066e20501e3a5d0f6103"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -1183,7 +1183,7 @@ dependencies = [
 [[package]]
 name = "typst-library"
 version = "0.1.0"
-source = "git+https://github.com/typst/typst.git?tag=v0.1#b3faef4b80a674294091066e20501e3a5d0f6103"
+source = "git+https://github.com/typst/typst.git?tag=v0.1.0#b3faef4b80a674294091066e20501e3a5d0f6103"
 dependencies = [
  "comemo",
  "csv",
@@ -1213,7 +1213,7 @@ dependencies = [
 [[package]]
 name = "typst-macros"
 version = "0.1.0"
-source = "git+https://github.com/typst/typst.git?tag=v0.1#b3faef4b80a674294091066e20501e3a5d0f6103"
+source = "git+https://github.com/typst/typst.git?tag=v0.1.0#b3faef4b80a674294091066e20501e3a5d0f6103"
 dependencies = [
  "heck",
  "proc-macro2",
