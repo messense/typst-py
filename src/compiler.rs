@@ -9,7 +9,7 @@ use elsa::FrozenVec;
 use memmap2::Mmap;
 use once_cell::unsync::OnceCell;
 use same_file::Handle;
-use siphasher::sip128::{Hasher128, SipHasher};
+use siphasher::sip128::{Hasher128, SipHasher13};
 use typst::diag::{FileError, FileResult, StrResult};
 use typst::eval::Library;
 use typst::font::{Font, FontBook, FontInfo};
@@ -191,7 +191,7 @@ impl PathHash {
     fn new(path: &Path) -> FileResult<Self> {
         let f = |e| FileError::from_io(e, path);
         let handle = Handle::from_path(path).map_err(f)?;
-        let mut state = SipHasher::new();
+        let mut state = SipHasher13::new();
         handle.hash(&mut state);
         Ok(Self(state.finish128().as_u128()))
     }
