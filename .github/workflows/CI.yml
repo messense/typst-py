@@ -31,6 +31,9 @@ jobs:
           python-version: '3.10'
       - name: Build wheels
         uses: PyO3/maturin-action@v1
+        env:
+          # Make psm compile, see https://github.com/rust-lang/stacker/issues/79
+          CFLAGS_s390x_unknown_linux_gnu: "-march=z10"
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
