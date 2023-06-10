@@ -1,17 +1,17 @@
-use std::cell::{RefCell, RefMut};
+use std::cell::{Cell, OnceCell, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
+use chrono::Datelike;
 use comemo::Prehashed;
 use elsa::FrozenVec;
 use memmap2::Mmap;
-use once_cell::unsync::OnceCell;
 use same_file::Handle;
 use siphasher::sip128::{Hasher128, SipHasher13};
 use typst::diag::{FileError, FileResult, StrResult};
-use typst::eval::Library;
+use typst::eval::{Datetime, Library};
 use typst::font::{Font, FontBook, FontInfo};
 use typst::syntax::{Source, SourceId};
 use typst::util::{Buffer, PathExt};
@@ -27,6 +27,7 @@ pub struct SystemWorld {
     hashes: RefCell<HashMap<PathBuf, FileResult<PathHash>>>,
     paths: RefCell<HashMap<PathHash, PathSlot>>,
     sources: FrozenVec<Box<Source>>,
+    today: Cell<Option<Datetime>>,
     main: SourceId,
 }
 
@@ -62,14 +63,20 @@ impl World for SystemWorld {
             .source
             .get_or_init(|| {
                 let buf = read(path)?;
-                let text = String::from_utf8(buf)?;
+                let text = if buf.starts_with(b"\xef\xbb\xbf") {
+                    // remove UTF-8 BOM
+                    std::str::from_utf8(&buf[3..])?.to_owned()
+                } else {
+                    // Assume UTF-8
+                    String::from_utf8(buf)?
+                };
                 Ok(self.insert(path, text))
             })
             .clone()
     }
 
     fn source(&self, id: SourceId) -> &Source {
-        &self.sources[id.into_u16() as usize]
+        &self.sources[id.as_u16() as usize]
     }
 
     fn book(&self) -> &Prehashed<FontBook> {
@@ -91,6 +98,23 @@ impl World for SystemWorld {
             .buffer
             .get_or_init(|| read(path).map(Buffer::from))
             .clone()
+    }
+
+    fn today(&self, offset: Option<i64>) -> Option<Datetime> {
+        if self.today.get().is_none() {
+            let datetime = match offset {
+                None => chrono::Local::now().naive_local(),
+                Some(o) => (chrono::Utc::now() + chrono::Duration::hours(o)).naive_utc(),
+            };
+
+            self.today.set(Some(Datetime::from_ymd(
+                datetime.year(),
+                datetime.month().try_into().ok()?,
+                datetime.day().try_into().ok()?,
+            )?))
+        }
+
+        self.today.get()
     }
 }
 
@@ -114,6 +138,7 @@ impl SystemWorld {
             hashes: RefCell::default(),
             paths: RefCell::default(),
             sources: FrozenVec::new(),
+            today: Cell::new(None),
             main: SourceId::detached(),
         }
     }
