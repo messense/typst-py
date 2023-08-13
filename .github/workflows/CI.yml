@@ -15,6 +15,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -24,6 +28,11 @@ jobs:
     strategy:
       matrix:
         target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
+        include:
+          - target: s390x
+            extra-build-args: --no-default-features --features native-tls-vendored,pyo3/extension-module
+          - target: ppc64le
+            extra-build-args: --no-default-features --features native-tls-vendored,pyo3/extension-module
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -36,7 +45,7 @@ jobs:
           CFLAGS_s390x_unknown_linux_gnu: "-march=z10"
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: --release --out dist ${{ matrix.extra-build-args || '' }}
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels

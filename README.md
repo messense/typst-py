@@ -18,12 +18,10 @@ pip install typst
 import typst
 
 
-compiler = typst.Compiler(".")
 # Compile `hello.typ` to PDF and save as `hello.pdf`
-compiler.compile("hello.typ", output="hello.pdf")
+typst.compile("hello.typ", output="hello.pdf")
 
-# Or use the shortcut `compile` function
-# and return PDF content as bytes
+# Or return PDF content as bytes
 pdf_bytes = typst.compile("hello.typ")
 ```
 

@@ -13,13 +13,25 @@ crate-type = ["cdylib"]
 
 [dependencies]
 chrono = { version = "0.4.24", default-features = false, features = ["clock", "std"] }
+codespan-reporting = "0.11"
 comemo = "0.3"
 dirs = "5"
-elsa = "1.8"
+flate2 = "1"
 memmap2 = "0.6"
 pyo3 = { version = "0.19.0", features = ["abi3-py37"] }
 same-file = "1"
 siphasher = "0.3"
-typst = { git = "https://github.com/typst/typst.git", tag = "v0.5.0" }
-typst-library = { git = "https://github.com/typst/typst.git", tag = "v0.5.0" }
+tar = "0.4"
+typst = { git = "https://github.com/typst/typst.git", tag = "v0.7.0" }
+typst-library = { git = "https://github.com/typst/typst.git", tag = "v0.7.0" }
+ureq = { version = "2", default-features = false, features = ["gzip", "socks-proxy"] }
 walkdir = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+openssl = { version = "0.10", optional = true }
+
+[features]
+default = ["rustls"]
+rustls = ["ureq/tls"]
+native-tls = ["ureq/native-tls"]
+native-tls-vendored = ["native-tls", "openssl/vendored"]
