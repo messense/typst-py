@@ -24,5 +24,14 @@ siphasher = "0.3"
 tar = "0.4"
 typst = { git = "https://github.com/typst/typst.git", tag = "v0.7.0" }
 typst-library = { git = "https://github.com/typst/typst.git", tag = "v0.7.0" }
-ureq = "2"
+ureq = { version = "2", default-features = false, features = ["gzip", "socks-proxy"] }
 walkdir = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+openssl = { version = "0.10", optional = true }
+
+[features]
+default = ["rustls"]
+rustls = ["ureq/tls"]
+native-tls = ["ureq/native-tls"]
+native-tls-vendored = ["native-tls", "openssl/vendored"]
