@@ -4,9 +4,12 @@ use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use compiler::SystemWorld;
+use world::SystemWorld;
 
 mod compiler;
+mod fonts;
+mod package;
+mod world;
 
 fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
     let resources = py.import("importlib.resources")?;
@@ -32,61 +35,6 @@ fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
     }
 }
 
-/// A typst compiler
-#[pyclass(module = "typst._typst")]
-pub struct Compiler {
-    world: compiler::SystemWorld,
-}
-
-impl Compiler {
-    fn compile(&mut self, input: PathBuf) -> PyResult<Vec<u8>> {
-        let buffer = self
-            .world
-            .compile(&input)
-            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
-        Ok(buffer)
-    }
-}
-
-#[pymethods]
-impl Compiler {
-    /// Create a new typst compiler instance
-    #[new]
-    #[pyo3(signature = (root, font_paths = Vec::new()))]
-    fn new(root: PathBuf, font_paths: Vec<PathBuf>) -> PyResult<Self> {
-        let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
-        let mut default_fonts = Vec::new();
-        for entry in walkdir::WalkDir::new(resource_path.join("fonts")) {
-            let path = entry
-                .map_err(|err| PyIOError::new_err(err.to_string()))?
-                .into_path();
-            let Some(extension) = path.extension() else { continue };
-            if extension == "ttf" || extension == "otf" {
-                default_fonts.push(path);
-            }
-        }
-        let world = SystemWorld::new(root, &font_paths, &default_fonts);
-        Ok(Self { world })
-    }
-
-    /// Compile a typst file to PDF
-    #[pyo3(name = "compile", signature = (input, output = None))]
-    fn py_compile(
-        &mut self,
-        py: Python<'_>,
-        input: PathBuf,
-        output: Option<PathBuf>,
-    ) -> PyResult<PyObject> {
-        let pdf_bytes = py.allow_threads(|| self.compile(input))?;
-        if let Some(output) = output {
-            std::fs::write(output, pdf_bytes)?;
-            Ok(py.None())
-        } else {
-            Ok(PyBytes::new(py, &pdf_bytes).into())
-        }
-    }
-}
-
 /// Compile a typst document to PDF
 #[pyfunction]
 #[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new()))]
@@ -97,23 +45,37 @@ fn compile(
     root: Option<PathBuf>,
     font_paths: Vec<PathBuf>,
 ) -> PyResult<PyObject> {
+    let input = input.canonicalize()?;
     let root = if let Some(root) = root {
         root.canonicalize()?
-    } else if let Some(dir) = input
-        .canonicalize()
-        .ok()
-        .as_ref()
-        .and_then(|path| path.parent())
+    } else if let Some(dir) = input.parent()
     {
         dir.into()
     } else {
         PathBuf::new()
     };
+    let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
 
     py.allow_threads(move || {
         // Create the world that serves sources, fonts and files.
-        let mut compiler = Compiler::new(root, font_paths)?;
-        let pdf_bytes = compiler.compile(input)?;
+        let mut default_fonts = Vec::new();
+        for entry in walkdir::WalkDir::new(resource_path.join("fonts")) {
+            let path = entry
+                .map_err(|err| PyIOError::new_err(err.to_string()))?
+                .into_path();
+            let Some(extension) = path.extension() else { continue };
+            if extension == "ttf" || extension == "otf" {
+                default_fonts.push(path);
+            }
+        }
+        let mut world = SystemWorld::new(root, input)
+            .font_paths(font_paths)
+            .font_files(default_fonts)
+            .build()
+            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
+        let pdf_bytes = world
+            .compile()
+            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         if let Some(output) = output {
             std::fs::write(output, pdf_bytes)?;
             Ok(Python::with_gil(|py| py.None()))
@@ -127,7 +89,6 @@ fn compile(
 #[pymodule]
 fn _typst(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
-    m.add_class::<Compiler>()?;
     m.add_function(wrap_pyfunction!(compile, m)?)?;
     Ok(())
 }
