@@ -37,23 +37,23 @@ fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
 
 /// Compile a typst document to PDF
 #[pyfunction]
-#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new()))]
+#[pyo3(signature = (input, output = None, root = None, font_paths = None))]
 fn compile(
     py: Python<'_>,
     input: PathBuf,
     output: Option<PathBuf>,
     root: Option<PathBuf>,
-    font_paths: Vec<PathBuf>,
+    font_paths: Option<Vec<PathBuf>>,
 ) -> PyResult<PyObject> {
     let input = input.canonicalize()?;
     let root = if let Some(root) = root {
         root.canonicalize()?
-    } else if let Some(dir) = input.parent()
-    {
+    } else if let Some(dir) = input.parent() {
         dir.into()
     } else {
         PathBuf::new()
     };
+
     let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
 
     py.allow_threads(move || {
@@ -63,13 +63,18 @@ fn compile(
             let path = entry
                 .map_err(|err| PyIOError::new_err(err.to_string()))?
                 .into_path();
-            let Some(extension) = path.extension() else { continue };
+            let Some(extension) = path.extension() else {
+                continue;
+            };
             if extension == "ttf" || extension == "otf" {
                 default_fonts.push(path);
             }
         }
         let mut world = SystemWorld::new(root, input)
-            .font_paths(font_paths)
+            .font_paths(match font_paths {
+                Some(font_paths) => font_paths,
+                None => Vec::new(),
+            })
             .font_files(default_fonts)
             .build()
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
