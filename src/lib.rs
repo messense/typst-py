@@ -37,13 +37,13 @@ fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
 
 /// Compile a typst document to PDF
 #[pyfunction]
-#[pyo3(signature = (input, output = None, root = None, font_paths = None))]
+#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new()))]
 fn compile(
     py: Python<'_>,
     input: PathBuf,
     output: Option<PathBuf>,
     root: Option<PathBuf>,
-    font_paths: Option<Vec<PathBuf>>,
+    font_paths: Vec<PathBuf>,
 ) -> PyResult<PyObject> {
     let input = input.canonicalize()?;
     let root = if let Some(root) = root {
@@ -71,10 +71,7 @@ fn compile(
             }
         }
         let mut world = SystemWorld::new(root, input)
-            .font_paths(match font_paths {
-                Some(font_paths) => font_paths,
-                None => Vec::new(),
-            })
+            .font_paths(font_paths)
             .font_files(default_fonts)
             .build()
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
