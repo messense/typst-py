@@ -48,12 +48,12 @@ fn compile(
     let input = input.canonicalize()?;
     let root = if let Some(root) = root {
         root.canonicalize()?
-    } else if let Some(dir) = input.parent()
-    {
+    } else if let Some(dir) = input.parent() {
         dir.into()
     } else {
         PathBuf::new()
     };
+
     let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
 
     py.allow_threads(move || {
@@ -63,7 +63,9 @@ fn compile(
             let path = entry
                 .map_err(|err| PyIOError::new_err(err.to_string()))?
                 .into_path();
-            let Some(extension) = path.extension() else { continue };
+            let Some(extension) = path.extension() else {
+                continue;
+            };
             if extension == "ttf" || extension == "otf" {
                 default_fonts.push(path);
             }
