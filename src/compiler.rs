@@ -3,8 +3,8 @@ use codespan_reporting::term::{self, termcolor};
 use typst::diag::{Severity, SourceDiagnostic, StrResult};
 use typst::doc::Document;
 use typst::eval::{eco_format, Tracer};
-use typst::syntax::{FileId, Source};
-use typst::World;
+use typst::syntax::{FileId, Source, Span};
+use typst::{World, WorldExt};
 
 use crate::world::SystemWorld;
 
@@ -62,10 +62,7 @@ pub fn format_diagnostics(
                 .map(|e| (eco_format!("hint: {e}")).into())
                 .collect(),
         )
-        .with_labels(vec![Label::primary(
-            diagnostic.span.id(),
-            world.range(diagnostic.span),
-        )]);
+        .with_labels(label(world, diagnostic.span).into_iter().collect());
 
         term::emit(&mut w, &config, world, &diag)?;
 
@@ -74,10 +71,7 @@ pub fn format_diagnostics(
             let message = point.v.to_string();
             let help = Diagnostic::help()
                 .with_message(message)
-                .with_labels(vec![Label::primary(
-                    point.span.id(),
-                    world.range(point.span),
-                )]);
+                .with_labels(label(world, point.span).into_iter().collect());
 
             term::emit(&mut w, &config, world, &help)?;
         }
@@ -87,13 +81,30 @@ pub fn format_diagnostics(
     Ok(s)
 }
 
+/// Create a label for a span.
+fn label(world: &SystemWorld, span: Span) -> Option<Label<FileId>> {
+    Some(Label::primary(span.id()?, world.range(span)?))
+}
+
 impl<'a> codespan_reporting::files::Files<'a> for SystemWorld {
     type FileId = FileId;
-    type Name = FileId;
+    type Name = String;
     type Source = Source;
 
     fn name(&'a self, id: FileId) -> CodespanResult<Self::Name> {
-        Ok(id)
+        let vpath = id.vpath();
+        Ok(if let Some(package) = id.package() {
+            format!("{package}{}", vpath.as_rooted_path().display())
+        } else {
+            // Try to express the path relative to the working directory.
+            vpath
+                .resolve(self.root())
+                .and_then(|abs| pathdiff::diff_paths(&abs, self.workdir()))
+                .as_deref()
+                .unwrap_or_else(|| vpath.as_rootless_path())
+                .to_string_lossy()
+                .into()
+        })
     }
 
     fn source(&'a self, id: FileId) -> CodespanResult<Self::Source> {

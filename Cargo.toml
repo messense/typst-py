@@ -1,6 +1,6 @@
 [package]
 name = "typst-py"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 description = "Python binding to typst"
 license = "Apache-2.0"
@@ -12,19 +12,28 @@ readme = "README.md"
 crate-type = ["cdylib"]
 
 [dependencies]
-chrono = { version = "0.4.24", default-features = false, features = ["clock", "std"] }
+chrono = { version = "0.4.24", default-features = false, features = [
+    "clock",
+    "std",
+] }
 codespan-reporting = "0.11"
 comemo = "0.3"
 dirs = "5"
+ecow = "0.1.1"
+env_proxy = "0.4"
 flate2 = "1"
-memmap2 = "0.6"
+memmap2 = "0.7"
+pathdiff = "0.1"
 pyo3 = { version = "0.19.0", features = ["abi3-py37"] }
 same-file = "1"
-siphasher = "0.3"
+siphasher = "1.0"
 tar = "0.4"
-typst = { git = "https://github.com/typst/typst.git", tag = "v0.7.0" }
-typst-library = { git = "https://github.com/typst/typst.git", tag = "v0.7.0" }
-ureq = { version = "2", default-features = false, features = ["gzip", "socks-proxy"] }
+typst = { git = "https://github.com/typst/typst.git", tag = "v0.8.0" }
+typst-library = { git = "https://github.com/typst/typst.git", tag = "v0.8.0" }
+ureq = { version = "2", default-features = false, features = [
+    "gzip",
+    "socks-proxy",
+] }
 walkdir = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]

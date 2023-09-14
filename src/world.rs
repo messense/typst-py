@@ -11,8 +11,7 @@ use siphasher::sip128::{Hasher128, SipHasher13};
 use typst::diag::{FileError, FileResult, StrResult};
 use typst::eval::{Bytes, Datetime, Library};
 use typst::font::{Font, FontBook};
-use typst::syntax::{FileId, Source};
-use typst::util::PathExt;
+use typst::syntax::{FileId, Source, VirtualPath};
 use typst::World;
 
 use crate::fonts::{FontSearcher, FontSlot};
@@ -20,6 +19,8 @@ use crate::package::prepare_package;
 
 /// A world that provides access to the operating system.
 pub struct SystemWorld {
+    /// The working directory.
+    workdir: Option<PathBuf>,
     /// The root relative to which absolute paths are resolved.
     root: PathBuf,
     /// The input path.
@@ -83,7 +84,7 @@ impl World for SystemWorld {
 }
 
 impl SystemWorld {
-    pub fn new(root: PathBuf, main: PathBuf) -> SystemWorldBuilder {
+    pub fn builder(root: PathBuf, main: PathBuf) -> SystemWorldBuilder {
         SystemWorldBuilder::new(root, main)
     }
 
@@ -97,14 +98,15 @@ impl SystemWorld {
             .or_insert_with(|| {
                 // Determine the root path relative to which the file path
                 // will be resolved.
-                let root = match id.package() {
-                    Some(spec) => prepare_package(spec)?,
-                    None => self.root.clone(),
-                };
-
+                let buf;
+                let mut root = &self.root;
+                if let Some(spec) = id.package() {
+                    buf = prepare_package(spec)?;
+                    root = &buf;
+                }
                 // Join the path to the root. If it tries to escape, deny
                 // access. Note: It can still escape via symlinks.
-                system_path = root.join_rooted(id.path()).ok_or(FileError::AccessDenied)?;
+                system_path = id.vpath().resolve(root).ok_or(FileError::AccessDenied)?;
 
                 PathHash::new(&system_path)
             })
@@ -125,6 +127,16 @@ impl SystemWorld {
     /// The id of the main source file.
     pub fn main(&self) -> FileId {
         self.main
+    }
+
+    /// The root relative to which absolute paths are resolved.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// The current working directory.
+    pub fn workdir(&self) -> &Path {
+        self.workdir.as_deref().unwrap_or(Path::new("."))
     }
 
     /// Reset the compilation state in preparation of a new compilation.
@@ -177,17 +189,14 @@ impl SystemWorldBuilder {
             searcher.search_file(path);
         }
 
-        // Resolve the input path within the project.
-        let project_input = self
-            .main
-            .strip_prefix(&self.root)
-            .map(|path| Path::new("/").join(path))
-            .map_err(|_| "input file must be contained in project root")?;
-        let main = FileId::new(None, &project_input);
+        // Resolve the virtual path of the main file within the project root.
+        let main_path = VirtualPath::within_root(&self.main, &self.root)
+            .ok_or("input file must be contained in project root")?;
 
         let world = SystemWorld {
+            workdir: std::env::current_dir().ok(),
             root: self.root,
-            main,
+            main: FileId::new(None, main_path),
             library: Prehashed::new(typst_library::build()),
             book: Prehashed::new(searcher.book),
             fonts: searcher.fonts,

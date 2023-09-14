@@ -7,6 +7,7 @@ use pyo3::types::PyBytes;
 use world::SystemWorld;
 
 mod compiler;
+mod download;
 mod fonts;
 mod package;
 mod world;
@@ -48,8 +49,7 @@ fn compile(
     let input = input.canonicalize()?;
     let root = if let Some(root) = root {
         root.canonicalize()?
-    } else if let Some(dir) = input.parent()
-    {
+    } else if let Some(dir) = input.parent() {
         dir.into()
     } else {
         PathBuf::new()
@@ -63,12 +63,14 @@ fn compile(
             let path = entry
                 .map_err(|err| PyIOError::new_err(err.to_string()))?
                 .into_path();
-            let Some(extension) = path.extension() else { continue };
+            let Some(extension) = path.extension() else {
+                continue;
+            };
             if extension == "ttf" || extension == "otf" {
                 default_fonts.push(path);
             }
         }
-        let mut world = SystemWorld::new(root, input)
+        let mut world = SystemWorld::builder(root, input)
             .font_paths(font_paths)
             .font_files(default_fonts)
             .build()
