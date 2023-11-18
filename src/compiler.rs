@@ -1,8 +1,9 @@
+use chrono::{Datelike, Timelike};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term::{self, termcolor};
 use typst::diag::{Severity, SourceDiagnostic, StrResult};
 use typst::doc::Document;
-use typst::eval::{eco_format, Tracer};
+use typst::eval::{eco_format, Datetime, Tracer};
 use typst::syntax::{FileId, Source, Span};
 use typst::{World, WorldExt};
 
@@ -23,7 +24,7 @@ impl SystemWorld {
 
         match result {
             // Export the PDF / PNG.
-            Ok(document) => Ok(export_pdf(&document)?),
+            Ok(document) => Ok(export_pdf(&document, self)?),
             Err(errors) => Err(format_diagnostics(self, &errors, &warnings).unwrap().into()),
         }
     }
@@ -31,9 +32,23 @@ impl SystemWorld {
 
 /// Export to a PDF.
 #[inline]
-fn export_pdf(document: &Document) -> StrResult<Vec<u8>> {
-    let buffer = typst::export::pdf(document);
+fn export_pdf(document: &Document, world: &SystemWorld) -> StrResult<Vec<u8>> {
+    let ident = world.input().to_string_lossy();
+    let buffer = typst::export::pdf(document, Some(&ident), now());
     Ok(buffer)
+}
+
+/// Get the current date and time in UTC.
+fn now() -> Option<Datetime> {
+    let now = chrono::Local::now().naive_utc();
+    Datetime::from_ymd_hms(
+        now.year(),
+        now.month().try_into().ok()?,
+        now.day().try_into().ok()?,
+        now.hour().try_into().ok()?,
+        now.minute().try_into().ok()?,
+        now.second().try_into().ok()?,
+    )
 }
 
 /// Format diagnostic messages.\

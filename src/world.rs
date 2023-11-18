@@ -1,4 +1,4 @@
-use std::cell::{OnceCell, RefCell, RefMut};
+use std::cell::{Cell, OnceCell, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fs;
 use std::hash::Hash;
@@ -6,10 +6,11 @@ use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Datelike, Local};
 use comemo::Prehashed;
+use filetime::FileTime;
 use same_file::Handle;
 use siphasher::sip128::{Hasher128, SipHasher13};
 use typst::diag::{FileError, FileResult, StrResult};
-use typst::eval::{Bytes, Datetime, Library};
+use typst::eval::{eco_format, Bytes, Datetime, Library};
 use typst::font::{Font, FontBook};
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::World;
@@ -21,6 +22,8 @@ use crate::package::prepare_package;
 pub struct SystemWorld {
     /// The working directory.
     workdir: Option<PathBuf>,
+    /// The canonical path to the input file.
+    input: PathBuf,
     /// The root relative to which absolute paths are resolved.
     root: PathBuf,
     /// The input path.
@@ -36,7 +39,7 @@ pub struct SystemWorld {
     /// be used in conjunction with `paths`.
     hashes: RefCell<HashMap<FileId, FileResult<PathHash>>>,
     /// Maps canonical path hashes to source files and buffers.
-    paths: RefCell<HashMap<PathHash, PathSlot>>,
+    slots: RefCell<HashMap<PathHash, PathSlot>>,
     /// The current datetime if requested. This is stored here to ensure it is
     /// always the same within one compilation. Reset between compilations.
     now: OnceCell<DateTime<Local>>,
@@ -112,15 +115,10 @@ impl SystemWorld {
             })
             .clone()?;
 
-        Ok(RefMut::map(self.paths.borrow_mut(), |paths| {
-            paths.entry(hash).or_insert_with(|| PathSlot {
-                id,
-                // This will only trigger if the `or_insert_with` above also
-                // triggered.
-                system_path,
-                source: OnceCell::new(),
-                buffer: OnceCell::new(),
-            })
+        Ok(RefMut::map(self.slots.borrow_mut(), |paths| {
+            paths
+                .entry(hash)
+                .or_insert_with(|| PathSlot::new(id, system_path))
         }))
     }
 
@@ -142,8 +140,15 @@ impl SystemWorld {
     /// Reset the compilation state in preparation of a new compilation.
     pub fn reset(&mut self) {
         self.hashes.borrow_mut().clear();
-        self.paths.borrow_mut().clear();
+        for slot in self.slots.borrow_mut().values_mut() {
+            slot.reset();
+        }
         self.now.take();
+    }
+
+    /// Return the canonical path to the input file.
+    pub fn input(&self) -> &PathBuf {
+        &self.input
     }
 
     /// Lookup a source file by id.
@@ -183,25 +188,25 @@ impl SystemWorldBuilder {
 
     pub fn build(self) -> StrResult<SystemWorld> {
         let mut searcher = FontSearcher::new();
-        searcher.search(&self.font_paths);
+        searcher.search(&self.font_paths, &self.font_files);
 
-        for path in self.font_files {
-            searcher.search_file(path);
-        }
-
+        let input = self.main.canonicalize().map_err(|_| {
+            eco_format!("input file not found (searched at {})", self.main.display())
+        })?;
         // Resolve the virtual path of the main file within the project root.
         let main_path = VirtualPath::within_root(&self.main, &self.root)
             .ok_or("input file must be contained in project root")?;
 
         let world = SystemWorld {
             workdir: std::env::current_dir().ok(),
+            input,
             root: self.root,
             main: FileId::new(None, main_path),
             library: Prehashed::new(typst_library::build()),
             book: Prehashed::new(searcher.book),
             fonts: searcher.fonts,
             hashes: RefCell::default(),
-            paths: RefCell::default(),
+            slots: RefCell::default(),
             now: OnceCell::new(),
         };
         Ok(world)
@@ -215,28 +220,98 @@ struct PathSlot {
     /// The slot's canonical file id.
     id: FileId,
     /// The slot's path on the system.
-    system_path: PathBuf,
-    /// The lazily loaded source file for a path hash.
-    source: OnceCell<FileResult<Source>>,
-    /// The lazily loaded buffer for a path hash.
-    buffer: OnceCell<FileResult<Bytes>>,
+    path: PathBuf,
+    /// The lazily loaded and incrementally updated source file.
+    source: SlotCell<Source>,
+    /// The lazily loaded raw byte buffer.
+    file: SlotCell<Bytes>,
 }
 
 impl PathSlot {
+    /// Create a new path slot.
+    fn new(id: FileId, path: PathBuf) -> Self {
+        Self {
+            id,
+            path,
+            file: SlotCell::new(),
+            source: SlotCell::new(),
+        }
+    }
+
+    /// Marks the file as not yet accessed in preparation of the next
+    /// compilation.
+    fn reset(&self) {
+        self.source.reset();
+        self.file.reset();
+    }
+
     fn source(&self) -> FileResult<Source> {
-        self.source
-            .get_or_init(|| {
-                let buf = read(&self.system_path)?;
-                let text = decode_utf8(buf)?;
-                Ok(Source::new(self.id, text))
-            })
-            .clone()
+        self.source.get_or_init(&self.path, |data, prev| {
+            let text = decode_utf8(&data)?;
+            if let Some(mut prev) = prev {
+                prev.replace(text);
+                Ok(prev)
+            } else {
+                Ok(Source::new(self.id, text.into()))
+            }
+        })
     }
 
     fn file(&self) -> FileResult<Bytes> {
-        self.buffer
-            .get_or_init(|| read(&self.system_path).map(Bytes::from))
-            .clone()
+        self.file.get_or_init(&self.path, |data, _| Ok(data.into()))
+    }
+}
+
+/// Lazily processes data for a file.
+struct SlotCell<T> {
+    data: RefCell<Option<FileResult<T>>>,
+    refreshed: Cell<FileTime>,
+    accessed: Cell<bool>,
+}
+
+impl<T: Clone> SlotCell<T> {
+    /// Creates a new, empty cell.
+    fn new() -> Self {
+        Self {
+            data: RefCell::new(None),
+            refreshed: Cell::new(FileTime::zero()),
+            accessed: Cell::new(false),
+        }
+    }
+
+    /// Marks the cell as not yet accessed in preparation of the next
+    /// compilation.
+    fn reset(&self) {
+        self.accessed.set(false);
+    }
+
+    /// Gets the contents of the cell or initialize them.
+    fn get_or_init(
+        &self,
+        path: &Path,
+        f: impl FnOnce(Vec<u8>, Option<T>) -> FileResult<T>,
+    ) -> FileResult<T> {
+        let mut borrow = self.data.borrow_mut();
+        if let Some(data) = &*borrow {
+            if self.accessed.replace(true) || self.current(path) {
+                return data.clone();
+            }
+        }
+
+        self.accessed.set(true);
+        self.refreshed.set(FileTime::now());
+        let prev = borrow.take().and_then(Result::ok);
+        let value = read(path).and_then(|data| f(data, prev));
+        *borrow = Some(value.clone());
+        value
+    }
+
+    /// Whether the cell contents are still up to date with the file system.
+    fn current(&self, path: &Path) -> bool {
+        fs::metadata(path).map_or(false, |meta| {
+            let modified = FileTime::from_last_modification_time(&meta);
+            modified < self.refreshed.get()
+        })
     }
 }
 
@@ -265,12 +340,9 @@ fn read(path: &Path) -> FileResult<Vec<u8>> {
 }
 
 /// Decode UTF-8 with an optional BOM.
-fn decode_utf8(buf: Vec<u8>) -> FileResult<String> {
-    Ok(if buf.starts_with(b"\xef\xbb\xbf") {
-        // Remove UTF-8 BOM.
-        std::str::from_utf8(&buf[3..])?.into()
-    } else {
-        // Assume UTF-8.
-        String::from_utf8(buf)?
-    })
+fn decode_utf8(buf: &[u8]) -> FileResult<&str> {
+    // Remove UTF-8 BOM.
+    Ok(std::str::from_utf8(
+        buf.strip_prefix(b"\xef\xbb\xbf").unwrap_or(buf),
+    )?)
 }
