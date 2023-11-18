@@ -13,7 +13,10 @@ mod package;
 mod world;
 
 fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
-    let resources = py.import("importlib.resources")?;
+    let resources = match py.import("importlib.resources") {
+        Ok(module) => module,
+        Err(_) => py.import("importlib_resources")?,
+    };
     let files = resources.call_method1("files", (package,))?;
     let files = resources.call_method1("as_file", (files,))?;
     let path = files.call_method0("__enter__")?; // enter python context manager
