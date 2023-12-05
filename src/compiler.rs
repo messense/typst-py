@@ -1,9 +1,11 @@
 use chrono::{Datelike, Timelike};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term::{self, termcolor};
+use ecow::eco_format;
 use typst::diag::{Severity, SourceDiagnostic, StrResult};
-use typst::doc::Document;
-use typst::eval::{eco_format, Datetime, Tracer};
+use typst::eval::Tracer;
+use typst::foundations::Datetime;
+use typst::model::Document;
 use typst::syntax::{FileId, Source, Span};
 use typst::{World, WorldExt};
 
@@ -34,7 +36,7 @@ impl SystemWorld {
 #[inline]
 fn export_pdf(document: &Document, world: &SystemWorld) -> StrResult<Vec<u8>> {
     let ident = world.input().to_string_lossy();
-    let buffer = typst::export::pdf(document, Some(&ident), now());
+    let buffer = typst_pdf::pdf(document, Some(&ident), now());
     Ok(buffer)
 }
 

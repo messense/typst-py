@@ -23,14 +23,14 @@ ecow = "0.2"
 env_proxy = "0.4"
 filetime = "0.2.22"
 flate2 = "1"
-fontdb = "0.15.0"
+fontdb = "0.16.0"
 pathdiff = "0.2"
 pyo3 = { version = "0.20.0", features = ["abi3-py37"] }
 same-file = "1"
 siphasher = "1.0"
 tar = "0.4"
-typst = { git = "https://github.com/typst/typst.git", tag = "v0.9.0" }
-typst-library = { git = "https://github.com/typst/typst.git", tag = "v0.9.0" }
+typst = { git = "https://github.com/typst/typst.git", tag = "v0.10.0" }
+typst-pdf = { git = "https://github.com/typst/typst.git", tag = "v0.10.0" }
 ureq = { version = "2", default-features = false, features = [
     "gzip",
     "socks-proxy",

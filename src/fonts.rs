@@ -3,7 +3,7 @@ use std::fs::{self};
 use std::path::PathBuf;
 
 use fontdb::{Database, Source};
-use typst::font::{Font, FontBook, FontInfo};
+use typst::text::{Font, FontBook, FontInfo};
 
 /// Searches for fonts.
 pub struct FontSearcher {
