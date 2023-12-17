@@ -26,7 +26,7 @@ def compile(
 ) -> Optional[bytes]:
     """Compile a Typst project.
     Args:
-        input (PathLike): Projet's main .typ file.
+        input (PathLike): Project's main .typ file.
         output (Optional[PathLike], optional): Path to save the compiled file.
         Allowed extensions are `.pdf`, `.svg` and `.png`
         root (Optional[PathLike], optional): Root path for the Typst project.
