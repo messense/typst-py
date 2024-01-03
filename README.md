@@ -21,8 +21,14 @@ import typst
 # Compile `hello.typ` to PDF and save as `hello.pdf`
 typst.compile("hello.typ", output="hello.pdf")
 
+# Compile `hello.typ` to PNG and save as `hello.png`
+typst.compile("hello.typ", output="hello.png", format="png", ppi=144.0)
+
 # Or return PDF content as bytes
 pdf_bytes = typst.compile("hello.typ")
+
+# Also for svg
+svg_bytes = typst.compile("hello.typ", format="svg")
 ```
 
 ## License
