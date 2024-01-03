@@ -7,6 +7,7 @@ use typst::eval::Tracer;
 use typst::foundations::Datetime;
 use typst::model::Document;
 use typst::syntax::{FileId, Source, Span};
+use typst::visualize::Color;
 use typst::{World, WorldExt};
 
 use crate::world::SystemWorld;
@@ -15,7 +16,7 @@ type CodespanResult<T> = Result<T, CodespanError>;
 type CodespanError = codespan_reporting::files::Error;
 
 impl SystemWorld {
-    pub fn compile(&mut self) -> StrResult<Vec<u8>> {
+    pub fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> StrResult<Vec<u8>> {
         // Reset everything and ensure that the main file is present.
         self.reset();
         self.source(self.main()).map_err(|err| err.to_string())?;
@@ -26,7 +27,15 @@ impl SystemWorld {
 
         match result {
             // Export the PDF / PNG.
-            Ok(document) => Ok(export_pdf(&document, self)?),
+            Ok(document) => {
+                // Assert format is "pdf" or "png" or "svg"
+                match format.unwrap_or("pdf").to_ascii_lowercase().as_str() {
+                    "pdf" => Ok(export_pdf(&document, self)?),
+                    "png" => Ok(export_image(&document, ImageExportFormat::Png, ppi)?),
+                    "svg" => Ok(export_image(&document, ImageExportFormat::Svg, ppi)?),
+                    fmt => Err(eco_format!("unknown format: {fmt}")),
+                }
+            }
             Err(errors) => Err(format_diagnostics(self, &errors, &warnings).unwrap().into()),
         }
     }
@@ -51,6 +60,34 @@ fn now() -> Option<Datetime> {
         now.minute().try_into().ok()?,
         now.second().try_into().ok()?,
     )
+}
+
+/// An image format to export in.
+enum ImageExportFormat {
+    Png,
+    Svg,
+}
+
+/// Export the first frame to PNG or SVG.
+fn export_image(
+    document: &Document,
+    fmt: ImageExportFormat,
+    ppi: Option<f32>,
+) -> StrResult<Vec<u8>> {
+    // Find the first frame
+    let frame = document.pages.first().unwrap();
+    match fmt {
+        ImageExportFormat::Png => {
+            let pixmap = typst_render::render(frame, ppi.unwrap_or(144.0) / 72.0, Color::WHITE);
+            pixmap
+                .encode_png()
+                .map_err(|err| eco_format!("failed to write PNG file ({err})"))
+        }
+        ImageExportFormat::Svg => {
+            let svg = typst_svg::svg(frame);
+            Ok(svg.as_bytes().to_vec())
+        }
+    }
 }
 
 /// Format diagnostic messages.\

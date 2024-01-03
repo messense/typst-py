@@ -1261,6 +1261,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8afb450f006bf6385ca15ef45d71d2288452bc3683ce2e2cacc0d18e4be60b58"
 
 [[package]]
+name = "pixglyph"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f67591f21f6668e63c1cd85adab066ac8a92bc7b962668dd8042197a6e4b8f8f"
+dependencies = [
+ "ttf-parser 0.19.2",
+]
+
+[[package]]
 name = "pkg-config"
 version = "0.3.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1537,6 +1546,32 @@ name = "regex-syntax"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
+
+[[package]]
+name = "resvg"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc7980f653f9a7db31acff916a262c3b78c562919263edea29bf41a056e20497"
+dependencies = [
+ "gif",
+ "jpeg-decoder",
+ "log",
+ "pico-args",
+ "png",
+ "rgb",
+ "svgtypes",
+ "tiny-skia",
+ "usvg",
+]
+
+[[package]]
+name = "rgb"
+version = "0.8.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05aaa8004b64fd573fc9d002f4e632d51ad4f026c2b5ba95fcb6c2f32c2c47d8"
+dependencies = [
+ "bytemuck",
+]
 
 [[package]]
 name = "ring"
@@ -2011,6 +2046,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tiny-skia"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6a067b809476893fce6a254cf285850ff69c847e6cfbade6a20b655b6c7e80d"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "bytemuck",
+ "cfg-if",
+ "log",
+ "png",
+ "tiny-skia-path",
+]
+
+[[package]]
 name = "tiny-skia-path"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2238,8 +2288,44 @@ dependencies = [
  "tar",
  "typst",
  "typst-pdf",
+ "typst-render",
+ "typst-svg",
  "ureq",
  "walkdir",
+]
+
+[[package]]
+name = "typst-render"
+version = "0.10.0"
+source = "git+https://github.com/typst/typst.git?tag=v0.10.0#70ca0d257bb4ba927f63260e20443f244e0bb58c"
+dependencies = [
+ "bytemuck",
+ "comemo",
+ "flate2",
+ "image",
+ "pixglyph",
+ "resvg",
+ "roxmltree",
+ "tiny-skia",
+ "ttf-parser 0.19.2",
+ "typst",
+ "usvg",
+]
+
+[[package]]
+name = "typst-svg"
+version = "0.10.0"
+source = "git+https://github.com/typst/typst.git?tag=v0.10.0#70ca0d257bb4ba927f63260e20443f244e0bb58c"
+dependencies = [
+ "base64",
+ "comemo",
+ "ecow",
+ "flate2",
+ "tracing",
+ "ttf-parser 0.19.2",
+ "typst",
+ "xmlparser",
+ "xmlwriter",
 ]
 
 [[package]]

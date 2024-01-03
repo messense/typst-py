@@ -41,13 +41,15 @@ fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
 
 /// Compile a typst document to PDF
 #[pyfunction]
-#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new()))]
+#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None))]
 fn compile(
     py: Python<'_>,
     input: PathBuf,
     output: Option<PathBuf>,
     root: Option<PathBuf>,
     font_paths: Vec<PathBuf>,
+    format: Option<&str>,
+    ppi: Option<f32>,
 ) -> PyResult<PyObject> {
     let input = input.canonicalize()?;
     let root = if let Some(root) = root {
@@ -78,14 +80,14 @@ fn compile(
             .font_files(default_fonts)
             .build()
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
-        let pdf_bytes = world
-            .compile()
+        let bytes = world
+            .compile(format, ppi)
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         if let Some(output) = output {
-            std::fs::write(output, pdf_bytes)?;
+            std::fs::write(output, bytes)?;
             Ok(Python::with_gil(|py| py.None()))
         } else {
-            Ok(Python::with_gil(|py| PyBytes::new(py, &pdf_bytes).into()))
+            Ok(Python::with_gil(|py| PyBytes::new(py, &bytes).into()))
         }
     })
 }
