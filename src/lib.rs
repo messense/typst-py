@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::path::PathBuf;
 
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
@@ -39,7 +40,7 @@ fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
     }
 }
 
-/// Compile a typst document to PDF
+/// Create a new world.
 #[pyfunction]
 #[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None))]
 fn compile(
@@ -51,43 +52,77 @@ fn compile(
     format: Option<&str>,
     ppi: Option<f32>,
 ) -> PyResult<PyObject> {
-    let input = input.canonicalize()?;
-    let root = if let Some(root) = root {
-        root.canonicalize()?
-    } else if let Some(dir) = input.parent() {
-        dir.into()
-    } else {
-        PathBuf::new()
-    };
-    let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
+    // static world for each thread
+    thread_local! {
+        static WORLD: RefCell<Option<SystemWorld>> = RefCell::new(None);
+    }
 
     py.allow_threads(move || {
-        // Create the world that serves sources, fonts and files.
-        let mut default_fonts = Vec::new();
-        for entry in walkdir::WalkDir::new(resource_path.join("fonts")) {
-            let path = entry
-                .map_err(|err| PyIOError::new_err(err.to_string()))?
-                .into_path();
-            let Some(extension) = path.extension() else {
-                continue;
-            };
-            if extension == "ttf" || extension == "otf" {
-                default_fonts.push(path);
-            }
-        }
-        let mut world = SystemWorld::builder(root, input)
-            .font_paths(font_paths)
-            .font_files(default_fonts)
-            .build()
-            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
-        let bytes = world
-            .compile(format, ppi)
-            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
-        if let Some(output) = output {
-            std::fs::write(output, bytes)?;
-            Ok(Python::with_gil(|py| py.None()))
+        // canonicalize the input path and root path
+        let input = input.canonicalize()?;
+        let root = if let Some(root) = root {
+            root.canonicalize()?
+        } else if let Some(dir) = input.parent() {
+            dir.into()
         } else {
-            Ok(Python::with_gil(|py| PyBytes::new(py, &bytes).into()))
+            PathBuf::new()
+        };
+        // if the world is not initialized or the input path, root path is changed,
+        // reinitialize the world
+        if WORLD.with(|world| {
+            world.borrow().is_none()
+                || root.as_path() != world.borrow().as_ref().unwrap().root()
+                || input.as_path() != world.borrow().as_ref().unwrap().input().as_path()
+        }) {
+            let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
+            // Create the world that serves sources, fonts and files.
+            let mut default_fonts = Vec::new();
+            for entry in walkdir::WalkDir::new(resource_path.join("fonts")) {
+                let path = entry
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?
+                    .into_path();
+                let Some(extension) = path.extension() else {
+                    continue;
+                };
+                if extension == "ttf" || extension == "otf" {
+                    default_fonts.push(path);
+                }
+            }
+
+            let _ = WORLD.with(|world| {
+                let mut world = world.borrow_mut();
+                let sys_world = SystemWorld::builder(root, input)
+                    .font_paths(font_paths)
+                    .font_files(default_fonts)
+                    .build()
+                    .map_err(|msg| PyRuntimeError::new_err(msg.to_string()));
+                match sys_world {
+                    Ok(sys_world) => {
+                        *world = Some(sys_world);
+                        Ok(())
+                    }
+                    Err(err) => Err(err),
+                }
+            });
+        }
+        let bytes = WORLD.with(|world| {
+            let mut world = world.borrow_mut();
+            world
+                .as_mut()
+                .unwrap()
+                .compile(format, ppi)
+                .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))
+        });
+        match bytes {
+            Ok(bytes) => {
+                if let Some(output) = output {
+                    std::fs::write(output, bytes)?;
+                    Ok(Python::with_gil(|py| py.None()))
+                } else {
+                    Ok(Python::with_gil(|py| PyBytes::new(py, &bytes).into()))
+                }
+            }
+            Err(err) => Err(err),
         }
     })
 }
