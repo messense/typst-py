@@ -55,6 +55,7 @@ fn compile(
     // static world for each thread
     thread_local! {
         static WORLD: RefCell<Option<SystemWorld>> = RefCell::new(None);
+        static LAST_FONT_PATHS: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
     }
 
     py.allow_threads(move || {
@@ -67,10 +68,26 @@ fn compile(
         } else {
             PathBuf::new()
         };
+        // if the font paths is changed, then update the font paths
+        let is_font_paths_changed = LAST_FONT_PATHS.with(|paths| {
+            let mut paths = paths.borrow_mut();
+            if paths.len() != font_paths.len() {
+                *paths = font_paths.clone();
+                true
+            } else {
+                for (path, last_path) in paths.iter().zip(font_paths.iter()) {
+                    if path != last_path {
+                        return true;
+                    }
+                }
+                false
+            }
+        });
         // if the world is not initialized or the input path, root path is changed,
         // reinitialize the world
         if WORLD.with(|world| {
             world.borrow().is_none()
+                || is_font_paths_changed
                 || root.as_path() != world.borrow().as_ref().unwrap().root()
                 || input.as_path() != world.borrow().as_ref().unwrap().input().as_path()
         }) {
@@ -98,6 +115,7 @@ fn compile(
                     .map_err(|msg| PyRuntimeError::new_err(msg.to_string()));
                 match sys_world {
                     Ok(sys_world) => {
+                        // update the world
                         *world = Some(sys_world);
                         Ok(())
                     }
@@ -105,8 +123,12 @@ fn compile(
                 }
             });
         }
+        // compile the document
         let bytes = WORLD.with(|world| {
             let mut world = world.borrow_mut();
+            if world.is_none() {
+                return Err(PyRuntimeError::new_err("world is not initialized"));
+            }
             world
                 .as_mut()
                 .unwrap()
