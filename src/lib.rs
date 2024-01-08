@@ -40,7 +40,7 @@ fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
     }
 }
 
-/// Create a new world.
+/// Compile a typst document
 #[pyfunction]
 #[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None))]
 fn compile(
