@@ -31,6 +31,8 @@ siphasher = "1.0"
 tar = "0.4"
 typst = { git = "https://github.com/typst/typst.git", tag = "v0.10.0" }
 typst-pdf = { git = "https://github.com/typst/typst.git", tag = "v0.10.0" }
+typst-svg = { git = "https://github.com/typst/typst.git", tag = "v0.10.0" }
+typst-render = { git = "https://github.com/typst/typst.git", tag = "v0.10.0" }
 ureq = { version = "2", default-features = false, features = [
     "gzip",
     "socks-proxy",
