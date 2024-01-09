@@ -29,6 +29,10 @@ pdf_bytes = typst.compile("hello.typ")
 
 # Also for svg
 svg_bytes = typst.compile("hello.typ", format="svg")
+
+# Or use Compiler class to avoid reinitialization
+compiler = typst.Compiler("hello.typ")
+compiler.compile(format="png", ppi=144.0)
 ```
 
 ## License

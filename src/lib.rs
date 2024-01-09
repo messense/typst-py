@@ -39,29 +39,38 @@ fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
     }
 }
 
-/// Compile a typst document to PDF
-#[pyfunction]
-#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None))]
-fn compile(
-    py: Python<'_>,
-    input: PathBuf,
-    output: Option<PathBuf>,
-    root: Option<PathBuf>,
-    font_paths: Vec<PathBuf>,
-    format: Option<&str>,
-    ppi: Option<f32>,
-) -> PyResult<PyObject> {
-    let input = input.canonicalize()?;
-    let root = if let Some(root) = root {
-        root.canonicalize()?
-    } else if let Some(dir) = input.parent() {
-        dir.into()
-    } else {
-        PathBuf::new()
-    };
-    let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
+/// A typst compiler
+#[pyclass(module = "typst._typst")]
+pub struct Compiler {
+    world: SystemWorld,
+}
 
-    py.allow_threads(move || {
+impl Compiler {
+    fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> PyResult<Vec<u8>> {
+        let buffer = self
+            .world
+            .compile(format, ppi)
+            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
+        Ok(buffer)
+    }
+}
+
+#[pymethods]
+impl Compiler {
+    /// Create a new typst compiler instance
+    #[new]
+    #[pyo3(signature = (input, root = None, font_paths = Vec::new()))]
+    fn new(input: PathBuf, root: Option<PathBuf>, font_paths: Vec<PathBuf>) -> PyResult<Self> {
+        let input = input.canonicalize()?;
+        let root = if let Some(root) = root {
+            root.canonicalize()?
+        } else if let Some(dir) = input.parent() {
+            dir.into()
+        } else {
+            PathBuf::new()
+        };
+        let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
+
         // Create the world that serves sources, fonts and files.
         let mut default_fonts = Vec::new();
         for entry in walkdir::WalkDir::new(resource_path.join("fonts")) {
@@ -75,27 +84,54 @@ fn compile(
                 default_fonts.push(path);
             }
         }
-        let mut world = SystemWorld::builder(root, input)
+        let world = SystemWorld::builder(root, input)
             .font_paths(font_paths)
             .font_files(default_fonts)
             .build()
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
-        let bytes = world
-            .compile(format, ppi)
-            .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
+        Ok(Self { world })
+    }
+
+    /// Compile a typst file to PDF
+    #[pyo3(name = "compile", signature = (output = None, format = None, ppi = None))]
+    fn py_compile(
+        &mut self,
+        py: Python<'_>,
+        output: Option<PathBuf>,
+        format: Option<&str>,
+        ppi: Option<f32>,
+    ) -> PyResult<PyObject> {
+        let bytes = py.allow_threads(|| self.compile(format, ppi))?;
         if let Some(output) = output {
             std::fs::write(output, bytes)?;
-            Ok(Python::with_gil(|py| py.None()))
+            Ok(py.None())
         } else {
-            Ok(Python::with_gil(|py| PyBytes::new(py, &bytes).into()))
+            Ok(PyBytes::new(py, &bytes).into())
         }
-    })
+    }
+}
+
+/// Compile a typst document to PDF
+#[pyfunction]
+#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None))]
+fn compile(
+    py: Python<'_>,
+    input: PathBuf,
+    output: Option<PathBuf>,
+    root: Option<PathBuf>,
+    font_paths: Vec<PathBuf>,
+    format: Option<&str>,
+    ppi: Option<f32>,
+) -> PyResult<PyObject> {
+    let mut compiler = Compiler::new(input, root, font_paths)?;
+    compiler.py_compile(py, output, format, ppi)
 }
 
 /// Python binding to typst
 #[pymodule]
 fn _typst(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    m.add_class::<Compiler>()?;
     m.add_function(wrap_pyfunction!(compile, m)?)?;
     Ok(())
 }
