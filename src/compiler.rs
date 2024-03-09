@@ -45,7 +45,7 @@ impl SystemWorld {
 #[inline]
 fn export_pdf(document: &Document, world: &SystemWorld) -> StrResult<Vec<u8>> {
     let ident = world.input().to_string_lossy();
-    let buffer = typst_pdf::pdf(document, Some(&ident), now());
+    let buffer = typst_pdf::pdf(document, typst::foundations::Smart::Custom(&ident), now());
     Ok(buffer)
 }
 
@@ -75,7 +75,7 @@ fn export_image(
     ppi: Option<f32>,
 ) -> StrResult<Vec<u8>> {
     // Find the first frame
-    let frame = document.pages.first().unwrap();
+    let frame = &document.pages.first().unwrap().frame;
     match fmt {
         ImageExportFormat::Png => {
             let pixmap = typst_render::render(frame, ppi.unwrap_or(144.0) / 72.0, Color::WHITE);

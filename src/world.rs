@@ -170,7 +170,7 @@ impl SystemWorldBuilder {
             input,
             root: self.root,
             main: FileId::new(None, main_path),
-            library: Prehashed::new(Library::build()),
+            library: Prehashed::new(Library::default()),
             book: Prehashed::new(searcher.book),
             fonts: searcher.fonts,
             slots: RefCell::default(),
