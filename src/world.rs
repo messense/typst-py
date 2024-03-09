@@ -7,10 +7,10 @@ use chrono::{DateTime, Datelike, Local};
 use comemo::Prehashed;
 use ecow::eco_format;
 use typst::diag::{FileError, FileResult, StrResult};
-use typst::foundations::{Bytes, Datetime};
+use typst::foundations::{Bytes, Datetime, Dict};
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
-use typst::{Library, World};
+use typst::{Library, LibraryBuilder, World};
 
 use crate::fonts::{FontSearcher, FontSlot};
 use crate::package::prepare_package;
@@ -132,6 +132,7 @@ pub struct SystemWorldBuilder {
     main: PathBuf,
     font_paths: Vec<PathBuf>,
     font_files: Vec<PathBuf>,
+    inputs: Dict,
 }
 
 impl SystemWorldBuilder {
@@ -141,6 +142,7 @@ impl SystemWorldBuilder {
             main,
             font_paths: Vec::new(),
             font_files: Vec::new(),
+            inputs: Dict::default(),
         }
     }
 
@@ -151,6 +153,11 @@ impl SystemWorldBuilder {
 
     pub fn font_files(mut self, font_files: Vec<PathBuf>) -> Self {
         self.font_files = font_files;
+        self
+    }
+
+    pub fn inputs(mut self, inputs: Dict) -> Self {
+        self.inputs = inputs;
         self
     }
 
@@ -170,7 +177,7 @@ impl SystemWorldBuilder {
             input,
             root: self.root,
             main: FileId::new(None, main_path),
-            library: Prehashed::new(Library::default()),
+            library: Prehashed::new(LibraryBuilder::default().with_inputs(self.inputs).build()),
             book: Prehashed::new(searcher.book),
             fonts: searcher.fonts,
             slots: RefCell::default(),

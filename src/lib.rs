@@ -4,6 +4,8 @@ use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use std::collections::HashMap;
+use typst::foundations::{Dict, Value};
 use world::SystemWorld;
 
 mod compiler;
@@ -59,8 +61,13 @@ impl Compiler {
 impl Compiler {
     /// Create a new typst compiler instance
     #[new]
-    #[pyo3(signature = (input, root = None, font_paths = Vec::new()))]
-    fn new(input: PathBuf, root: Option<PathBuf>, font_paths: Vec<PathBuf>) -> PyResult<Self> {
+    #[pyo3(signature = (input, root = None, font_paths = Vec::new(), sys_inputs = HashMap::new()))]
+    fn new(
+        input: PathBuf,
+        root: Option<PathBuf>,
+        font_paths: Vec<PathBuf>,
+        sys_inputs: HashMap<String, String>,
+    ) -> PyResult<Self> {
         let input = input.canonicalize()?;
         let root = if let Some(root) = root {
             root.canonicalize()?
@@ -85,6 +92,11 @@ impl Compiler {
             }
         }
         let world = SystemWorld::builder(root, input)
+            .inputs(Dict::from_iter(
+                sys_inputs
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), Value::Str(v.into()))),
+            ))
             .font_paths(font_paths)
             .font_files(default_fonts)
             .build()
@@ -113,7 +125,8 @@ impl Compiler {
 
 /// Compile a typst document to PDF
 #[pyfunction]
-#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None))]
+#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None, sys_inputs = HashMap::new()))]
+#[allow(clippy::too_many_arguments)]
 fn compile(
     py: Python<'_>,
     input: PathBuf,
@@ -122,8 +135,9 @@ fn compile(
     font_paths: Vec<PathBuf>,
     format: Option<&str>,
     ppi: Option<f32>,
+    sys_inputs: HashMap<String, String>,
 ) -> PyResult<PyObject> {
-    let mut compiler = Compiler::new(input, root, font_paths)?;
+    let mut compiler = Compiler::new(input, root, font_paths, sys_inputs)?;
     compiler.py_compile(py, output, format, ppi)
 }
 

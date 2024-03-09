@@ -1,5 +1,5 @@
 import pathlib
-from typing import List, Optional, TypeVar, overload
+from typing import List, Optional, TypeVar, overload, Dict
 
 PathLike = TypeVar("PathLike", str, pathlib.Path)
 
@@ -9,12 +9,14 @@ class Compiler:
         input: PathLike,
         root: Optional[PathLike] = None,
         font_paths: List[PathLike] = [],
+        sys_inputs: Dict[str, str] = {}
     ) -> None:
         """Initialize a Typst compiler.
         Args:
             input (PathLike): Project's main .typ file.
             root (Optional[PathLike], optional): Root path for the Typst project.
             font_paths (List[PathLike]): Folders with fonts.
+            sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
         """
     def compile(
         self,
@@ -41,6 +43,7 @@ def compile(
     font_paths: List[PathLike] = [],
     format: Optional[str] = None,
     ppi: Optional[float] = None,
+    sys_inputs: Dict[str, str] = {}
 ) -> None: ...
 @overload
 def compile(
@@ -50,6 +53,7 @@ def compile(
     font_paths: List[PathLike] = [],
     format: Optional[str] = None,
     ppi: Optional[float] = None,
+    sys_inputs: Dict[str, str] = {}
 ) -> bytes: ...
 def compile(
     input: PathLike,
@@ -58,6 +62,7 @@ def compile(
     font_paths: List[PathLike] = [],
     format: Optional[str] = None,
     ppi: Optional[float] = None,
+    sys_inputs: Dict[str, str] = {}
 ) -> Optional[bytes]:
     """Compile a Typst project.
     Args:
@@ -69,6 +74,7 @@ def compile(
         format (Optional[str]): Output format.
         Allowed values are `pdf`, `svg` and `png`.
         ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
+        sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
     Returns:
         Optional[bytes]: Return the compiled file as `bytes` if output is `None`.
     """
