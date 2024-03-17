@@ -1,6 +1,6 @@
 [package]
 name = "typst-py"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2021"
 description = "Python binding to typst"
 license = "Apache-2.0"
