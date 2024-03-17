@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use ecow::eco_format;
 use typst::diag::{PackageError, PackageResult};
-use typst::syntax::PackageSpec;
+use typst::syntax::package::PackageSpec;
 
 use crate::download::download;
 
