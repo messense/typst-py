@@ -37,7 +37,7 @@ ureq = { version = "2", default-features = false, features = [
     "gzip",
     "socks-proxy",
 ] }
-walkdir = "2.4.0"
+walkdir = "2.5.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 openssl = { version = "0.10", optional = true }
