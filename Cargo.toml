@@ -25,7 +25,7 @@ filetime = "0.2.22"
 flate2 = "1"
 fontdb = "0.16.0"
 pathdiff = "0.2"
-pyo3 = { version = "0.20.0", features = ["abi3-py37"] }
+pyo3 = { version = "0.21.1", features = ["abi3-py37"] }
 same-file = "1"
 siphasher = "1.0"
 tar = "0.4"
