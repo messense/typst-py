@@ -260,7 +260,7 @@ dependencies = [
  "comemo-macros",
  "once_cell",
  "parking_lot",
- "siphasher 1.0.0",
+ "siphasher 1.0.1",
 ]
 
 [[package]]
@@ -1837,9 +1837,9 @@ checksum = "38b58827f4464d87d377d175e90bf58eb00fd8716ff0a62f80356b5e61555d0d"
 
 [[package]]
 name = "siphasher"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54ac45299ccbd390721be55b412d41931911f654fa99e2cb8bfb57184b2061fe"
+checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
 name = "slotmap"
@@ -2236,7 +2236,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "siphasher 1.0.0",
+ "siphasher 1.0.1",
  "smallvec",
  "stacker",
  "syntect",
@@ -2318,7 +2318,7 @@ dependencies = [
  "pathdiff",
  "pyo3",
  "same-file",
- "siphasher 1.0.0",
+ "siphasher 1.0.1",
  "tar",
  "typst",
  "typst-pdf",
