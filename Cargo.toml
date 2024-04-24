@@ -12,7 +12,7 @@ readme = "README.md"
 crate-type = ["cdylib"]
 
 [dependencies]
-chrono = { version = "0.4.24", default-features = false, features = [
+chrono = { version = "0.4.38", default-features = false, features = [
     "clock",
     "std",
 ] }
