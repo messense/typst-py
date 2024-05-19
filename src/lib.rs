@@ -2,8 +2,9 @@ use std::path::PathBuf;
 
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::types::{PyBytes, PyList};
 
+use compiler::ImageBuffer;
 use std::collections::HashMap;
 use typst::foundations::{Dict, Value};
 use world::SystemWorld;
@@ -13,6 +14,35 @@ mod download;
 mod fonts;
 mod package;
 mod world;
+
+mod output_template {
+    const INDEXABLE: [&str; 3] = ["{p}", "{0p}", "{n}"];
+
+    pub fn has_indexable_template(output: &str) -> bool {
+        INDEXABLE.iter().any(|template| output.contains(template))
+    }
+
+    pub fn format(output: &str, this_page: usize, total_pages: usize) -> String {
+        // Find the base 10 width of number `i`
+        fn width(i: usize) -> usize {
+            1 + i.checked_ilog10().unwrap_or(0) as usize
+        }
+
+        let other_templates = ["{t}"];
+        INDEXABLE
+            .iter()
+            .chain(other_templates.iter())
+            .fold(output.to_string(), |out, template| {
+                let replacement = match *template {
+                    "{p}" => format!("{this_page}"),
+                    "{0p}" | "{n}" => format!("{:01$}", this_page, width(total_pages)),
+                    "{t}" => format!("{total_pages}"),
+                    _ => unreachable!("unhandled template placeholder {template}"),
+                };
+                out.replace(template, replacement.as_str())
+            })
+    }
+}
 
 fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
     let resources = match py.import("importlib.resources") {
@@ -48,7 +78,7 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> PyResult<Vec<u8>> {
+    fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> PyResult<ImageBuffer> {
         let buffer = self
             .world
             .compile(format, ppi)
@@ -113,12 +143,71 @@ impl Compiler {
         format: Option<&str>,
         ppi: Option<f32>,
     ) -> PyResult<PyObject> {
-        let bytes = py.allow_threads(|| self.compile(format, ppi))?;
         if let Some(output) = output {
-            std::fs::write(output, bytes)?;
+            // if format is None and output with postfix ".pdf", ".png" and ".svg" is
+            // provided, use the postfix as format
+            let format = match format {
+                Some(format) => Some(format),
+                None => {
+                    let output = output.to_str().unwrap();
+                    if output.ends_with(".pdf") {
+                        Some("pdf")
+                    } else if output.ends_with(".png") {
+                        Some("png")
+                    } else if output.ends_with(".svg") {
+                        Some("svg")
+                    } else {
+                        None
+                    }
+                }
+            };
+            let bytes = py.allow_threads(|| self.compile(format, ppi))?;
+            match bytes {
+                ImageBuffer::Single(buffer) => {
+                    std::fs::write(output, buffer)?;
+                }
+                ImageBuffer::Multi(buffers) => {
+                    let can_handle_multiple =
+                        output_template::has_indexable_template(output.to_str().unwrap());
+                    if !can_handle_multiple && buffers.len() > 1 {
+                        return Err(PyRuntimeError::new_err(
+                            "output path does not support multiple pages".to_string(),
+                        ));
+                    }
+                    if !can_handle_multiple && buffers.len() == 1 {
+                        // Write a single buffer to the output file
+                        std::fs::write(output, &buffers[0])?;
+                    } else {
+                        // Write each buffer to a separate file
+                        for (i, buffer) in buffers.iter().enumerate() {
+                            let output = output_template::format(
+                                output.to_str().unwrap(),
+                                i + 1,
+                                buffers.len(),
+                            );
+                            std::fs::write(output, buffer)?;
+                        }
+                    }
+                }
+            }
             Ok(py.None())
         } else {
-            Ok(PyBytes::new(py, &bytes).into())
+            let bytes = py.allow_threads(|| self.compile(format, ppi))?;
+            match bytes {
+                ImageBuffer::Single(buffer) => Ok(PyBytes::new_bound(py, &buffer).into()),
+                ImageBuffer::Multi(buffers) => {
+                    if buffers.len() == 1 {
+                        // Return a single buffer as a single byte string
+                        Ok(PyBytes::new_bound(py, &buffers[0]).into())
+                    } else {
+                        let list = PyList::empty_bound(py);
+                        for buffer in buffers {
+                            list.append(PyBytes::new_bound(py, &buffer))?;
+                        }
+                        Ok(list.into())
+                    }
+                }
+            }
         }
     }
 }
