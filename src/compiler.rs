@@ -15,13 +15,8 @@ use crate::world::SystemWorld;
 type CodespanResult<T> = Result<T, CodespanError>;
 type CodespanError = codespan_reporting::files::Error;
 
-pub enum ImageBuffer {
-    Single(Vec<u8>),
-    Multi(Vec<Vec<u8>>),
-}
-
 impl SystemWorld {
-    pub fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> StrResult<ImageBuffer> {
+    pub fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> StrResult<Vec<Vec<u8>>> {
         // Reset everything and ensure that the main file is present.
         self.reset();
         self.source(self.main()).map_err(|err| err.to_string())?;
@@ -35,17 +30,9 @@ impl SystemWorld {
             Ok(document) => {
                 // Assert format is "pdf" or "png" or "svg"
                 match format.unwrap_or("pdf").to_ascii_lowercase().as_str() {
-                    "pdf" => Ok(ImageBuffer::Single(export_pdf(&document, self)?)),
-                    "png" => Ok(ImageBuffer::Multi(export_image(
-                        &document,
-                        ImageExportFormat::Png,
-                        ppi,
-                    )?)),
-                    "svg" => Ok(ImageBuffer::Multi(export_image(
-                        &document,
-                        ImageExportFormat::Svg,
-                        ppi,
-                    )?)),
+                    "pdf" => Ok(vec![export_pdf(&document, self)?]),
+                    "png" => Ok(export_image(&document, ImageExportFormat::Png, ppi)?),
+                    "svg" => Ok(export_image(&document, ImageExportFormat::Svg, ppi)?),
                     fmt => Err(eco_format!("unknown format: {fmt}")),
                 }
             }

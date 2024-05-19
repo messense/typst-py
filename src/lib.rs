@@ -4,7 +4,6 @@ use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList};
 
-use compiler::ImageBuffer;
 use std::collections::HashMap;
 use typst::foundations::{Dict, Value};
 use world::SystemWorld;
@@ -78,7 +77,7 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> PyResult<ImageBuffer> {
+    fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> PyResult<Vec<Vec<u8>>> {
         let buffer = self
             .world
             .compile(format, ppi)
@@ -161,52 +160,38 @@ impl Compiler {
                     }
                 }
             };
-            let bytes = py.allow_threads(|| self.compile(format, ppi))?;
-            match bytes {
-                ImageBuffer::Single(buffer) => {
+            let buffers = py.allow_threads(|| self.compile(format, ppi))?;
+
+            let can_handle_multiple =
+                output_template::has_indexable_template(output.to_str().unwrap());
+            if !can_handle_multiple && buffers.len() > 1 {
+                return Err(PyRuntimeError::new_err(
+                    "output path does not support multiple pages".to_string(),
+                ));
+            }
+            if !can_handle_multiple && buffers.len() == 1 {
+                // Write a single buffer to the output file
+                std::fs::write(output, &buffers[0])?;
+            } else {
+                // Write each buffer to a separate file
+                for (i, buffer) in buffers.iter().enumerate() {
+                    let output =
+                        output_template::format(output.to_str().unwrap(), i + 1, buffers.len());
                     std::fs::write(output, buffer)?;
-                }
-                ImageBuffer::Multi(buffers) => {
-                    let can_handle_multiple =
-                        output_template::has_indexable_template(output.to_str().unwrap());
-                    if !can_handle_multiple && buffers.len() > 1 {
-                        return Err(PyRuntimeError::new_err(
-                            "output path does not support multiple pages".to_string(),
-                        ));
-                    }
-                    if !can_handle_multiple && buffers.len() == 1 {
-                        // Write a single buffer to the output file
-                        std::fs::write(output, &buffers[0])?;
-                    } else {
-                        // Write each buffer to a separate file
-                        for (i, buffer) in buffers.iter().enumerate() {
-                            let output = output_template::format(
-                                output.to_str().unwrap(),
-                                i + 1,
-                                buffers.len(),
-                            );
-                            std::fs::write(output, buffer)?;
-                        }
-                    }
                 }
             }
             Ok(py.None())
         } else {
-            let bytes = py.allow_threads(|| self.compile(format, ppi))?;
-            match bytes {
-                ImageBuffer::Single(buffer) => Ok(PyBytes::new_bound(py, &buffer).into()),
-                ImageBuffer::Multi(buffers) => {
-                    if buffers.len() == 1 {
-                        // Return a single buffer as a single byte string
-                        Ok(PyBytes::new_bound(py, &buffers[0]).into())
-                    } else {
-                        let list = PyList::empty_bound(py);
-                        for buffer in buffers {
-                            list.append(PyBytes::new_bound(py, &buffer))?;
-                        }
-                        Ok(list.into())
-                    }
+            let buffers = py.allow_threads(|| self.compile(format, ppi))?;
+            if buffers.len() == 1 {
+                // Return a single buffer as a single byte string
+                Ok(PyBytes::new_bound(py, &buffers[0]).into())
+            } else {
+                let list = PyList::empty_bound(py);
+                for buffer in buffers {
+                    list.append(PyBytes::new_bound(py, &buffer))?;
                 }
+                Ok(list.into())
             }
         }
     }
