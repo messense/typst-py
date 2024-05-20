@@ -2,8 +2,9 @@ use std::path::PathBuf;
 
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::types::{PyBytes, PyString};
 
+use query::{query as typst_query, QueryCommand, SerializationFormat};
 use std::collections::HashMap;
 use typst::foundations::{Dict, Value};
 use world::SystemWorld;
@@ -12,6 +13,7 @@ mod compiler;
 mod download;
 mod fonts;
 mod package;
+mod query;
 mod world;
 
 fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
@@ -54,6 +56,34 @@ impl Compiler {
             .compile(format, ppi)
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         Ok(buffer)
+    }
+
+    fn query(
+        &mut self,
+        selector: &str,
+        field: Option<&str>,
+        one: bool,
+        format: Option<&str>,
+    ) -> PyResult<String> {
+        let format = format.unwrap_or("json");
+        let format = match format {
+            "json" => SerializationFormat::Json,
+            "yaml" => SerializationFormat::Yaml,
+            _ => return Err(PyRuntimeError::new_err("unsupported serialization format")),
+        };
+        let result = typst_query(
+            &mut self.world,
+            &QueryCommand {
+                selector: selector.into(),
+                field: field.map(Into::into),
+                one,
+                format,
+            },
+        );
+        match result {
+            Ok(data) => Ok(data),
+            Err(msg) => Err(PyRuntimeError::new_err(msg.to_string())),
+        }
     }
 }
 
@@ -121,6 +151,20 @@ impl Compiler {
             Ok(PyBytes::new(py, &bytes).into())
         }
     }
+
+    /// Query a typst document
+    #[pyo3(name = "query", signature = (selector, field = None, one = false, format = None))]
+    fn py_query(
+        &mut self,
+        py: Python<'_>,
+        selector: &str,
+        field: Option<&str>,
+        one: bool,
+        format: Option<&str>,
+    ) -> PyResult<PyObject> {
+        py.allow_threads(|| self.query(selector, field, one, format))
+            .map(|s| PyString::new(py, &s).into())
+    }
 }
 
 /// Compile a typst document to PDF
@@ -141,11 +185,31 @@ fn compile(
     compiler.py_compile(py, output, format, ppi)
 }
 
+/// Query a typst document
+#[pyfunction]
+#[pyo3(name = "query", signature = (input, selector, field = None, one = false, format = None, root = None, font_paths = Vec::new(), sys_inputs = HashMap::new()))]
+#[allow(clippy::too_many_arguments)]
+fn py_query(
+    py: Python<'_>,
+    input: PathBuf,
+    selector: &str,
+    field: Option<&str>,
+    one: bool,
+    format: Option<&str>,
+    root: Option<PathBuf>,
+    font_paths: Vec<PathBuf>,
+    sys_inputs: HashMap<String, String>,
+) -> PyResult<PyObject> {
+    let mut compiler = Compiler::new(input, root, font_paths, sys_inputs)?;
+    compiler.py_query(py, selector, field, one, format)
+}
+
 /// Python binding to typst
 #[pymodule]
 fn _typst(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<Compiler>()?;
     m.add_function(wrap_pyfunction!(compile, m)?)?;
+    m.add_function(wrap_pyfunction!(py_query, m)?)?;
     Ok(())
 }

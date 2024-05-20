@@ -9,7 +9,7 @@ class Compiler:
         input: PathLike,
         root: Optional[PathLike] = None,
         font_paths: List[PathLike] = [],
-        sys_inputs: Dict[str, str] = {}
+        sys_inputs: Dict[str, str] = {},
     ) -> None:
         """Initialize a Typst compiler.
         Args:
@@ -18,6 +18,7 @@ class Compiler:
             font_paths (List[PathLike]): Folders with fonts.
             sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
         """
+
     def compile(
         self,
         output: Optional[PathLike] = None,
@@ -35,6 +36,23 @@ class Compiler:
             Optional[bytes]: Return the compiled file as `bytes` if output is `None`.
         """
 
+    def query(
+        self,
+        selector: str,
+        field: Optional[str] = None,
+        one: bool = False,
+        format: Optional[str] = None,
+    ) -> str:
+        """Query a Typst document.
+        Args:
+            selector (str): Typst selector like `<label>`.
+            field (Optional[str], optional): Field to query.
+            one (bool, optional): Query only one element.
+            format (Optional[str]): Output format, `json` or `yaml`.
+        Returns:
+            str: Return the query result.
+        """
+
 @overload
 def compile(
     input: PathLike,
@@ -43,7 +61,7 @@ def compile(
     font_paths: List[PathLike] = [],
     format: Optional[str] = None,
     ppi: Optional[float] = None,
-    sys_inputs: Dict[str, str] = {}
+    sys_inputs: Dict[str, str] = {},
 ) -> None: ...
 @overload
 def compile(
@@ -53,7 +71,7 @@ def compile(
     font_paths: List[PathLike] = [],
     format: Optional[str] = None,
     ppi: Optional[float] = None,
-    sys_inputs: Dict[str, str] = {}
+    sys_inputs: Dict[str, str] = {},
 ) -> bytes: ...
 def compile(
     input: PathLike,
@@ -62,7 +80,7 @@ def compile(
     font_paths: List[PathLike] = [],
     format: Optional[str] = None,
     ppi: Optional[float] = None,
-    sys_inputs: Dict[str, str] = {}
+    sys_inputs: Dict[str, str] = {},
 ) -> Optional[bytes]:
     """Compile a Typst project.
     Args:
@@ -77,4 +95,28 @@ def compile(
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
     Returns:
         Optional[bytes]: Return the compiled file as `bytes` if output is `None`.
+    """
+
+def query(
+    input: PathLike,
+    selector: str,
+    field: Optional[str] = None,
+    one: bool = False,
+    format: Optional[str] = None,
+    root: Optional[PathLike] = None,
+    font_paths: List[PathLike] = [],
+    sys_inputs: Dict[str, str] = {},
+) -> str:
+    """Query a Typst document.
+    Args:
+        input (PathLike): Project's main .typ file.
+        selector (str): Typst selector like `<label>`.
+        field (Optional[str], optional): Field to query.
+        one (bool, optional): Query only one element.
+        format (Optional[str]): Output format, `json` or `yaml`.
+        root (Optional[PathLike], optional): Root path for the Typst project.
+        font_paths (List[PathLike]): Folders with fonts.
+        sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
+    Returns:
+        str: Return the query result.
     """
