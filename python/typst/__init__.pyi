@@ -1,5 +1,5 @@
 import pathlib
-from typing import List, Optional, TypeVar, overload, Dict, Literal
+from typing import List, Optional, TypeVar, overload, Dict, Union, Literal
 
 PathLike = TypeVar("PathLike", str, pathlib.Path)
 
@@ -24,7 +24,7 @@ class Compiler:
         output: Optional[PathLike] = None,
         format: Optional[Literal["pdf", "svg", "png"]] = None,
         ppi: Optional[float] = None,
-    ) -> Optional[bytes]:
+    ) -> Optional[Union[bytes, List[bytes]]]:
         """Compile a Typst project.
         Args:
             output (Optional[PathLike], optional): Path to save the compiled file.
@@ -33,7 +33,7 @@ class Compiler:
             Allowed values are `pdf`, `svg` and `png`.
             ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
         Returns:
-            Optional[bytes]: Return the compiled file as `bytes` if output is `None`.
+            Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
         """
 
     def query(
@@ -81,7 +81,7 @@ def compile(
     format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-) -> Optional[bytes]:
+) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
     Args:
         input (PathLike): Project's main .typ file.
@@ -94,7 +94,7 @@ def compile(
         ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
     Returns:
-        Optional[bytes]: Return the compiled file as `bytes` if output is `None`.
+        Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
 
 def query(

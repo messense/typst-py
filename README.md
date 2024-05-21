@@ -30,6 +30,9 @@ pdf_bytes = typst.compile("hello.typ")
 # Also for svg
 svg_bytes = typst.compile("hello.typ", format="svg")
 
+# For multi-page export (the template is the same as the typst cli)
+images = typst.compile("hello.typ", output="hello{n}.png", format="png")
+
 # Or use Compiler class to avoid reinitialization
 compiler = typst.Compiler("hello.typ")
 compiler.compile(format="png", ppi=144.0)
