@@ -1,5 +1,5 @@
 import pathlib
-from typing import List, Optional, TypeVar, overload, Dict
+from typing import List, Optional, TypeVar, overload, Dict, Literal
 
 PathLike = TypeVar("PathLike", str, pathlib.Path)
 
@@ -22,7 +22,7 @@ class Compiler:
     def compile(
         self,
         output: Optional[PathLike] = None,
-        format: Optional[str] = None,
+        format: Optional[Literal["pdf", "svg", "png"]] = None,
         ppi: Optional[float] = None,
     ) -> Optional[bytes]:
         """Compile a Typst project.
@@ -41,7 +41,7 @@ class Compiler:
         selector: str,
         field: Optional[str] = None,
         one: bool = False,
-        format: Optional[str] = None,
+        format: Optional[Literal["json", "yaml"]] = None,
     ) -> str:
         """Query a Typst document.
         Args:
@@ -59,7 +59,7 @@ def compile(
     output: PathLike,
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
-    format: Optional[str] = None,
+    format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
 ) -> None: ...
@@ -69,7 +69,7 @@ def compile(
     output: None = None,
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
-    format: Optional[str] = None,
+    format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
 ) -> bytes: ...
@@ -78,7 +78,7 @@ def compile(
     output: Optional[PathLike] = None,
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
-    format: Optional[str] = None,
+    format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
 ) -> Optional[bytes]:
@@ -102,7 +102,7 @@ def query(
     selector: str,
     field: Optional[str] = None,
     one: bool = False,
-    format: Optional[str] = None,
+    format: Optional[Literal["json", "yaml"]] = None,
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
     sys_inputs: Dict[str, str] = {},
