@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use pyo3::exceptions::{PyIOError, PyRuntimeError};
+use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyString};
 
@@ -69,7 +69,7 @@ impl Compiler {
         let format = match format {
             "json" => SerializationFormat::Json,
             "yaml" => SerializationFormat::Yaml,
-            _ => return Err(PyRuntimeError::new_err("unsupported serialization format")),
+            _ => return Err(PyValueError::new_err("unsupported serialization format")),
         };
         let result = typst_query(
             &mut self.world,
