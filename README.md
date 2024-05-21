@@ -36,6 +36,11 @@ images = typst.compile("hello.typ", output="hello{n}.png", format="png")
 # Or use Compiler class to avoid reinitialization
 compiler = typst.Compiler("hello.typ")
 compiler.compile(format="png", ppi=144.0)
+
+# Query something
+import json
+
+values = json.loads(typst.query("hello.typ", "<note>", field="value", one=True))
 ```
 
 ## License
