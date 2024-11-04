@@ -46,9 +46,9 @@ mod output_template {
 }
 
 fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
-    let resources = match py.import("importlib.resources") {
+    let resources = match py.import_bound("importlib.resources") {
         Ok(module) => module,
-        Err(_) => py.import("importlib_resources")?,
+        Err(_) => py.import_bound("importlib_resources")?,
     };
     let files = resources.call_method1("files", (package,))?;
     let files = resources.call_method1("as_file", (files,))?;
@@ -63,7 +63,11 @@ fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
             files
                 .call_method1(
                     "__exit__",
-                    (err.get_type(py), err.value(py), err.traceback(py)),
+                    (
+                        err.get_type_bound(py),
+                        err.value_bound(py),
+                        err.traceback_bound(py),
+                    ),
                 )
                 .unwrap();
 
@@ -237,7 +241,7 @@ impl Compiler {
         format: Option<&str>,
     ) -> PyResult<PyObject> {
         py.allow_threads(|| self.query(selector, field, one, format))
-            .map(|s| PyString::new(py, &s).into())
+            .map(|s| PyString::new_bound(py, &s).into())
     }
 }
 
@@ -280,7 +284,7 @@ fn py_query(
 
 /// Python binding to typst
 #[pymodule]
-fn _typst(_py: Python, m: &PyModule) -> PyResult<()> {
+fn _typst(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<Compiler>()?;
     m.add_function(wrap_pyfunction!(compile, m)?)?;
