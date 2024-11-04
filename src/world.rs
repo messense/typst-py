@@ -1,19 +1,19 @@
-use std::cell::{Cell, OnceCell, RefCell, RefMut};
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 use chrono::{DateTime, Datelike, Local};
-use comemo::Prehashed;
 use ecow::eco_format;
 use typst::diag::{FileError, FileResult, StrResult};
 use typst::foundations::{Bytes, Datetime, Dict};
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
+use typst::utils::LazyHash;
 use typst::{Library, LibraryBuilder, World};
 
 use crate::fonts::{FontSearcher, FontSlot};
 use crate::package::prepare_package;
+use std::collections::HashMap;
 
 /// A world that provides access to the operating system.
 pub struct SystemWorld {
@@ -26,37 +26,37 @@ pub struct SystemWorld {
     /// The input path.
     main: FileId,
     /// Typst's standard library.
-    library: Prehashed<Library>,
+    library: LazyHash<Library>,
     /// Metadata about discovered fonts.
-    book: Prehashed<FontBook>,
+    book: LazyHash<FontBook>,
     /// Locations of and storage for lazily loaded fonts.
     fonts: Vec<FontSlot>,
     /// Maps file ids to source files and buffers.
-    slots: RefCell<HashMap<FileId, FileSlot>>,
+    slots: Mutex<HashMap<FileId, FileSlot>>,
     /// The current datetime if requested. This is stored here to ensure it is
     /// always the same within one compilation. Reset between compilations.
-    now: OnceCell<DateTime<Local>>,
+    now: OnceLock<DateTime<Local>>,
 }
 
 impl World for SystemWorld {
-    fn library(&self) -> &Prehashed<Library> {
+    fn library(&self) -> &LazyHash<Library> {
         &self.library
     }
 
-    fn book(&self) -> &Prehashed<FontBook> {
+    fn book(&self) -> &LazyHash<FontBook> {
         &self.book
     }
 
-    fn main(&self) -> Source {
-        self.source(self.main).unwrap()
+    fn main(&self) -> FileId {
+        self.main
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        self.slot(id)?.source(&self.root)
+        self.slot(id, |slot| slot.source(&self.root))
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        self.slot(id)?.file(&self.root)
+        self.slot(id, |slot| slot.file(&self.root))
     }
 
     fn font(&self, index: usize) -> Option<Font> {
@@ -85,10 +85,12 @@ impl SystemWorld {
     }
 
     /// Access the canonical slot for the given file id.
-    fn slot(&self, id: FileId) -> FileResult<RefMut<FileSlot>> {
-        Ok(RefMut::map(self.slots.borrow_mut(), |slots| {
-            slots.entry(id).or_insert_with(|| FileSlot::new(id))
-        }))
+    fn slot<F, T>(&self, id: FileId, f: F) -> T
+    where
+        F: FnOnce(&mut FileSlot) -> T,
+    {
+        let mut map = self.slots.lock().unwrap();
+        f(map.entry(id).or_insert_with(|| FileSlot::new(id)))
     }
 
     /// The id of the main source file.
@@ -108,7 +110,7 @@ impl SystemWorld {
 
     /// Reset the compilation state in preparation of a new compilation.
     pub fn reset(&mut self) {
-        for slot in self.slots.borrow_mut().values_mut() {
+        for slot in self.slots.lock().unwrap().values_mut() {
             slot.reset();
         }
         self.now.take();
@@ -177,11 +179,11 @@ impl SystemWorldBuilder {
             input,
             root: self.root,
             main: FileId::new(None, main_path),
-            library: Prehashed::new(LibraryBuilder::default().with_inputs(self.inputs).build()),
-            book: Prehashed::new(searcher.book),
+            library: LazyHash::new(LibraryBuilder::default().with_inputs(self.inputs).build()),
+            book: LazyHash::new(searcher.book),
             fonts: searcher.fonts,
-            slots: RefCell::default(),
-            now: OnceCell::new(),
+            slots: Mutex::default(),
+            now: OnceLock::new(),
         };
         Ok(world)
     }
@@ -211,14 +213,15 @@ impl FileSlot {
 
     /// Marks the file as not yet accessed in preparation of the next
     /// compilation.
-    fn reset(&self) {
+    fn reset(&mut self) {
         self.source.reset();
         self.file.reset();
     }
 
-    fn source(&self, root: &Path) -> FileResult<Source> {
+    fn source(&mut self, root: &Path) -> FileResult<Source> {
+        let id = self.id;
         self.source.get_or_init(
-            || self.system_path(root),
+            || system_path(root, id),
             |data, prev| {
                 let text = decode_utf8(&data)?;
                 if let Some(mut prev) = prev {
@@ -231,83 +234,82 @@ impl FileSlot {
         )
     }
 
-    fn file(&self, root: &Path) -> FileResult<Bytes> {
+    fn file(&mut self, root: &Path) -> FileResult<Bytes> {
+        let id = self.id;
         self.file
-            .get_or_init(|| self.system_path(root), |data, _| Ok(data.into()))
+            .get_or_init(|| system_path(root, id), |data, _| Ok(data.into()))
+    }
+}
+
+/// The path of the slot on the system.
+fn system_path(root: &Path, id: FileId) -> FileResult<PathBuf> {
+    // Determine the root path relative to which the file path
+    // will be resolved.
+    let buf;
+    let mut root = root;
+    if let Some(spec) = id.package() {
+        buf = prepare_package(spec)?;
+        root = &buf;
     }
 
-    /// The path of the slot on the system.
-    fn system_path(&self, root: &Path) -> FileResult<PathBuf> {
-        // Determine the root path relative to which the file path
-        // will be resolved.
-        let buf;
-        let mut root = root;
-        if let Some(spec) = self.id.package() {
-            buf = prepare_package(spec)?;
-            root = &buf;
-        }
-
-        // Join the path to the root. If it tries to escape, deny
-        // access. Note: It can still escape via symlinks.
-        self.id.vpath().resolve(root).ok_or(FileError::AccessDenied)
-    }
+    // Join the path to the root. If it tries to escape, deny
+    // access. Note: It can still escape via symlinks.
+    id.vpath().resolve(root).ok_or(FileError::AccessDenied)
 }
 
 /// Lazily processes data for a file.
 struct SlotCell<T> {
     /// The processed data.
-    data: RefCell<Option<FileResult<T>>>,
+    data: Option<FileResult<T>>,
     /// A hash of the raw file contents / access error.
-    fingerprint: Cell<u128>,
+    fingerprint: u128,
     /// Whether the slot has been accessed in the current compilation.
-    accessed: Cell<bool>,
+    accessed: bool,
 }
 
 impl<T: Clone> SlotCell<T> {
     /// Creates a new, empty cell.
     fn new() -> Self {
         Self {
-            data: RefCell::new(None),
-            fingerprint: Cell::new(0),
-            accessed: Cell::new(false),
+            data: None,
+            fingerprint: 0,
+            accessed: false,
         }
     }
 
     /// Marks the cell as not yet accessed in preparation of the next
     /// compilation.
-    fn reset(&self) {
-        self.accessed.set(false);
+    fn reset(&mut self) {
+        self.accessed = false;
     }
 
     /// Gets the contents of the cell or initialize them.
     fn get_or_init(
-        &self,
+        &mut self,
         path: impl FnOnce() -> FileResult<PathBuf>,
         f: impl FnOnce(Vec<u8>, Option<T>) -> FileResult<T>,
     ) -> FileResult<T> {
-        let mut borrow = self.data.borrow_mut();
-
         // If we accessed the file already in this compilation, retrieve it.
-        if self.accessed.replace(true) {
-            if let Some(data) = &*borrow {
+        if std::mem::replace(&mut self.accessed, true) {
+            if let Some(data) = &self.data {
                 return data.clone();
             }
         }
 
         // Read and hash the file.
         let result = path().and_then(|p| read(&p));
-        let fingerprint = typst::util::hash128(&result);
+        let fingerprint = typst::utils::hash128(&result);
 
         // If the file contents didn't change, yield the old processed data.
-        if self.fingerprint.replace(fingerprint) == fingerprint {
-            if let Some(data) = &*borrow {
+        if std::mem::replace(&mut self.fingerprint, fingerprint) == fingerprint {
+            if let Some(data) = &self.data {
                 return data.clone();
             }
         }
 
-        let prev = borrow.take().and_then(Result::ok);
+        let prev = self.data.take().and_then(Result::ok);
         let value = result.and_then(|data| f(data, prev));
-        *borrow = Some(value.clone());
+        self.data = Some(value.clone());
 
         value
     }

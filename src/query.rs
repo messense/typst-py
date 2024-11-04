@@ -1,8 +1,8 @@
 use comemo::Track;
 use ecow::{eco_format, EcoString};
 use serde::Serialize;
-use typst::diag::{bail, StrResult};
-use typst::eval::{eval_string, EvalMode, Tracer};
+use typst::diag::{bail, StrResult, Warned};
+use typst::eval::{eval_string, EvalMode};
 use typst::foundations::{Content, IntoValue, LocatableSelector, Scope};
 use typst::model::Document;
 use typst::syntax::Span;
@@ -39,11 +39,9 @@ pub fn query(world: &mut SystemWorld, command: &QueryCommand) -> StrResult<Strin
     world.reset();
     world.source(world.main()).map_err(|err| err.to_string())?;
 
-    let mut tracer = Tracer::new();
-    let result = typst::compile(world, &mut tracer);
-    let warnings = tracer.warnings();
+    let Warned { output, warnings } = typst::compile(world);
 
-    match result {
+    match output {
         // Retrieve and print query results.
         Ok(document) => {
             let data = retrieve(world, command, &document)?;
@@ -87,7 +85,8 @@ fn retrieve(
         }
         message
     })?
-    .cast::<LocatableSelector>()?;
+    .cast::<LocatableSelector>()
+    .map_err(|e| e.message().clone())?;
 
     Ok(document
         .introspector
@@ -105,7 +104,7 @@ fn format(elements: Vec<Content>, command: &QueryCommand) -> StrResult<String> {
     let mapped: Vec<_> = elements
         .into_iter()
         .filter_map(|c| match &command.field {
-            Some(field) => c.get_by_name(field),
+            Some(field) => c.get_by_name(field).ok(),
             _ => Some(c.into_value()),
         })
         .collect();
