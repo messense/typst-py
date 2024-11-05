@@ -119,6 +119,9 @@ jobs:
           path: dist
 
   release:
+    permissions:
+      # Used to upload to PyPI using trusted publisher.
+      id-token: write
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/')"
