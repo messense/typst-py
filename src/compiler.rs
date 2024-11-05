@@ -1,13 +1,11 @@
 use chrono::{Datelike, Timelike};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term::{self, termcolor};
-use ecow::eco_format;
-use typst::diag::{Severity, SourceDiagnostic, StrResult};
-use typst::eval::Tracer;
+use ecow::{eco_format, EcoString};
+use typst::diag::{Severity, SourceDiagnostic, StrResult, Warned};
 use typst::foundations::Datetime;
 use typst::model::Document;
 use typst::syntax::{FileId, Source, Span};
-use typst::visualize::Color;
 use typst::{World, WorldExt};
 
 use crate::world::SystemWorld;
@@ -21,11 +19,9 @@ impl SystemWorld {
         self.reset();
         self.source(self.main()).map_err(|err| err.to_string())?;
 
-        let mut tracer = Tracer::default();
-        let result = typst::compile(self, &mut tracer);
-        let warnings = tracer.warnings();
+        let Warned { output, warnings } = typst::compile(self);
 
-        match result {
+        match output {
             // Export the PDF / PNG.
             Ok(document) => {
                 // Assert format is "pdf" or "png" or "svg"
@@ -45,7 +41,18 @@ impl SystemWorld {
 #[inline]
 fn export_pdf(document: &Document, world: &SystemWorld) -> StrResult<Vec<u8>> {
     let ident = world.input().to_string_lossy();
-    let buffer = typst_pdf::pdf(document, typst::foundations::Smart::Custom(&ident), now());
+    let buffer = typst_pdf::pdf(
+        document,
+        &typst_pdf::PdfOptions {
+            ident: typst::foundations::Smart::Custom(&ident),
+            timestamp: now(),
+            ..Default::default()
+        },
+    )
+    .map_err(|e| match format_diagnostics(world, &e, &[]) {
+        Ok(e) => EcoString::from(e),
+        Err(err) => eco_format!("failed to print diagnostics ({err})"),
+    })?;
     Ok(buffer)
 }
 
@@ -77,13 +84,11 @@ fn export_image(
     let mut buffers = Vec::new();
     for page in &document.pages {
         let buffer = match fmt {
-            ImageExportFormat::Png => {
-                typst_render::render(&page.frame, ppi.unwrap_or(144.0) / 72.0, Color::WHITE)
-                    .encode_png()
-                    .map_err(|err| eco_format!("failed to write PNG file ({err})"))?
-            }
+            ImageExportFormat::Png => typst_render::render(page, ppi.unwrap_or(144.0) / 72.0)
+                .encode_png()
+                .map_err(|err| eco_format!("failed to write PNG file ({err})"))?,
             ImageExportFormat::Svg => {
-                let svg = typst_svg::svg(&page.frame);
+                let svg = typst_svg::svg(page);
                 svg.as_bytes().to_vec()
             }
         };

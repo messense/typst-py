@@ -1,6 +1,6 @@
-use std::cell::OnceCell;
 use std::fs::{self};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use fontdb::{Database, Source};
 use typst::text::{Font, FontBook, FontInfo};
@@ -21,7 +21,7 @@ pub struct FontSlot {
     /// to a collection.
     index: u32,
     /// The lazily loaded font.
-    font: OnceCell<Option<Font>>,
+    font: OnceLock<Option<Font>>,
 }
 
 impl FontSlot {
@@ -78,7 +78,7 @@ impl FontSearcher {
                 self.fonts.push(FontSlot {
                     path: path.clone(),
                     index: face.index,
-                    font: OnceCell::new(),
+                    font: OnceLock::new(),
                 });
             }
         }
