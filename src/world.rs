@@ -10,10 +10,14 @@ use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, LibraryBuilder, World};
+use typst_kit::{
+    fonts::{FontSearcher, FontSlot},
+    package::PackageStorage,
+};
 
-use crate::fonts::{FontSearcher, FontSlot};
-use crate::package::prepare_package;
 use std::collections::HashMap;
+
+use crate::download::SlientDownload;
 
 /// A world that provides access to the operating system.
 pub struct SystemWorld {
@@ -33,6 +37,8 @@ pub struct SystemWorld {
     fonts: Vec<FontSlot>,
     /// Maps file ids to source files and buffers.
     slots: Mutex<HashMap<FileId, FileSlot>>,
+    /// Holds information about where packages are stored.
+    package_storage: PackageStorage,
     /// The current datetime if requested. This is stored here to ensure it is
     /// always the same within one compilation. Reset between compilations.
     now: OnceLock<DateTime<Local>>,
@@ -52,11 +58,11 @@ impl World for SystemWorld {
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        self.slot(id, |slot| slot.source(&self.root))
+        self.slot(id, |slot| slot.source(&self.root, &self.package_storage))
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        self.slot(id, |slot| slot.file(&self.root))
+        self.slot(id, |slot| slot.file(&self.root, &self.package_storage))
     }
 
     fn font(&self, index: usize) -> Option<Font> {
@@ -133,7 +139,6 @@ pub struct SystemWorldBuilder {
     root: PathBuf,
     main: PathBuf,
     font_paths: Vec<PathBuf>,
-    font_files: Vec<PathBuf>,
     inputs: Dict,
 }
 
@@ -143,7 +148,6 @@ impl SystemWorldBuilder {
             root,
             main,
             font_paths: Vec::new(),
-            font_files: Vec::new(),
             inputs: Dict::default(),
         }
     }
@@ -153,19 +157,13 @@ impl SystemWorldBuilder {
         self
     }
 
-    pub fn font_files(mut self, font_files: Vec<PathBuf>) -> Self {
-        self.font_files = font_files;
-        self
-    }
-
     pub fn inputs(mut self, inputs: Dict) -> Self {
         self.inputs = inputs;
         self
     }
 
     pub fn build(self) -> StrResult<SystemWorld> {
-        let mut searcher = FontSearcher::new();
-        searcher.search(&self.font_paths, &self.font_files);
+        let fonts = FontSearcher::new().search_with(&self.font_paths);
 
         let input = self.main.canonicalize().map_err(|_| {
             eco_format!("input file not found (searched at {})", self.main.display())
@@ -180,9 +178,10 @@ impl SystemWorldBuilder {
             root: self.root,
             main: FileId::new(None, main_path),
             library: LazyHash::new(LibraryBuilder::default().with_inputs(self.inputs).build()),
-            book: LazyHash::new(searcher.book),
-            fonts: searcher.fonts,
+            book: LazyHash::new(fonts.book),
+            fonts: fonts.fonts,
             slots: Mutex::default(),
+            package_storage: PackageStorage::new(None, None, crate::download::downloader()),
             now: OnceLock::new(),
         };
         Ok(world)
@@ -218,10 +217,10 @@ impl FileSlot {
         self.file.reset();
     }
 
-    fn source(&mut self, root: &Path) -> FileResult<Source> {
+    fn source(&mut self, root: &Path, package_storage: &PackageStorage) -> FileResult<Source> {
         let id = self.id;
         self.source.get_or_init(
-            || system_path(root, id),
+            || system_path(root, id, package_storage),
             |data, prev| {
                 let text = decode_utf8(&data)?;
                 if let Some(mut prev) = prev {
@@ -234,21 +233,23 @@ impl FileSlot {
         )
     }
 
-    fn file(&mut self, root: &Path) -> FileResult<Bytes> {
+    fn file(&mut self, root: &Path, package_storage: &PackageStorage) -> FileResult<Bytes> {
         let id = self.id;
-        self.file
-            .get_or_init(|| system_path(root, id), |data, _| Ok(data.into()))
+        self.file.get_or_init(
+            || system_path(root, id, package_storage),
+            |data, _| Ok(data.into()),
+        )
     }
 }
 
 /// The path of the slot on the system.
-fn system_path(root: &Path, id: FileId) -> FileResult<PathBuf> {
+fn system_path(root: &Path, id: FileId, package_storage: &PackageStorage) -> FileResult<PathBuf> {
     // Determine the root path relative to which the file path
     // will be resolved.
     let buf;
     let mut root = root;
     if let Some(spec) = id.package() {
-        buf = prepare_package(spec)?;
+        buf = package_storage.prepare_package(spec, &mut SlientDownload(&spec))?;
         root = &buf;
     }
 

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyString};
 
@@ -11,8 +11,6 @@ use world::SystemWorld;
 
 mod compiler;
 mod download;
-mod fonts;
-mod package;
 mod query;
 mod world;
 
@@ -42,33 +40,6 @@ mod output_template {
                 };
                 out.replace(template, replacement.as_str())
             })
-    }
-}
-
-fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
-    let resources = match py.import("importlib.resources") {
-        Ok(module) => module,
-        Err(_) => py.import("importlib_resources")?,
-    };
-    let files = resources.call_method1("files", (package,))?;
-    let files = resources.call_method1("as_file", (files,))?;
-    let path = files.call_method0("__enter__")?; // enter python context manager
-    match path.extract() {
-        Ok(path) => {
-            let none = py.None();
-            files.call_method1("__exit__", (&none, &none, &none))?;
-            Ok(path)
-        }
-        Err(err) => {
-            files
-                .call_method1(
-                    "__exit__",
-                    (err.get_type(py), err.value(py), err.traceback(py)),
-                )
-                .unwrap();
-
-            Err(err)
-        }
     }
 }
 
@@ -135,21 +106,8 @@ impl Compiler {
         } else {
             PathBuf::new()
         };
-        let resource_path = Python::with_gil(|py| resources_path(py, "typst"))?;
 
         // Create the world that serves sources, fonts and files.
-        let mut default_fonts = Vec::new();
-        for entry in walkdir::WalkDir::new(resource_path.join("fonts")) {
-            let path = entry
-                .map_err(|err| PyIOError::new_err(err.to_string()))?
-                .into_path();
-            let Some(extension) = path.extension() else {
-                continue;
-            };
-            if extension == "ttf" || extension == "otf" {
-                default_fonts.push(path);
-            }
-        }
         let world = SystemWorld::builder(root, input)
             .inputs(Dict::from_iter(
                 sys_inputs
@@ -157,7 +115,6 @@ impl Compiler {
                     .map(|(k, v)| (k.into(), Value::Str(v.into()))),
             ))
             .font_paths(font_paths)
-            .font_files(default_fonts)
             .build()
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         Ok(Self { world })
