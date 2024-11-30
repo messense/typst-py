@@ -46,9 +46,9 @@ mod output_template {
 }
 
 fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
-    let resources = match py.import_bound("importlib.resources") {
+    let resources = match py.import("importlib.resources") {
         Ok(module) => module,
-        Err(_) => py.import_bound("importlib_resources")?,
+        Err(_) => py.import("importlib_resources")?,
     };
     let files = resources.call_method1("files", (package,))?;
     let files = resources.call_method1("as_file", (files,))?;
@@ -63,11 +63,7 @@ fn resources_path(py: Python<'_>, package: &str) -> PyResult<PathBuf> {
             files
                 .call_method1(
                     "__exit__",
-                    (
-                        err.get_type_bound(py),
-                        err.value_bound(py),
-                        err.traceback_bound(py),
-                    ),
+                    (err.get_type(py), err.value(py), err.traceback(py)),
                 )
                 .unwrap();
 
@@ -219,11 +215,11 @@ impl Compiler {
             let buffers = py.allow_threads(|| self.compile(format, ppi))?;
             if buffers.len() == 1 {
                 // Return a single buffer as a single byte string
-                Ok(PyBytes::new_bound(py, &buffers[0]).into())
+                Ok(PyBytes::new(py, &buffers[0]).into())
             } else {
-                let list = PyList::empty_bound(py);
+                let list = PyList::empty(py);
                 for buffer in buffers {
-                    list.append(PyBytes::new_bound(py, &buffer))?;
+                    list.append(PyBytes::new(py, &buffer))?;
                 }
                 Ok(list.into())
             }
@@ -241,7 +237,7 @@ impl Compiler {
         format: Option<&str>,
     ) -> PyResult<PyObject> {
         py.allow_threads(|| self.query(selector, field, one, format))
-            .map(|s| PyString::new_bound(py, &s).into())
+            .map(|s| PyString::new(py, &s).into())
     }
 }
 
@@ -283,7 +279,7 @@ fn py_query(
 }
 
 /// Python binding to typst
-#[pymodule]
+#[pymodule(gil_used = false)]
 fn _typst(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<Compiler>()?;
