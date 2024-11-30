@@ -10,7 +10,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["importlib-resources; python_version < '3.9'"]
 dynamic = ["version"]
 
 [tool.maturin]

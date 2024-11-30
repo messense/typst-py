@@ -18,35 +18,18 @@ chrono = { version = "0.4.38", default-features = false, features = [
 ] }
 codespan-reporting = "0.11"
 comemo = "0.4.0"
-dirs = "5"
 ecow = "0.2"
-env_proxy = "0.4"
-filetime = "0.2.22"
-flate2 = "1"
-fontdb = "0.21.0"
 pathdiff = "0.2"
 pyo3 = { version = "0.23.2", features = ["abi3-py38", "generate-import-lib"] }
-same-file = "1"
 serde = { version = "1.0.209", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
-siphasher = "1.0"
-tar = "0.4"
 typst = "0.12.0"
+typst-kit = { version = "0.12.0", features = [
+    "downloads",
+    "embed-fonts",
+    "vendor-openssl",
+] }
 typst-pdf = "0.12.0"
 typst-svg = "0.12.0"
 typst-render = "0.12.0"
-ureq = { version = "2", default-features = false, features = [
-    "gzip",
-    "socks-proxy",
-] }
-walkdir = "2.5.0"
-
-[target.'cfg(target_os = "linux")'.dependencies]
-openssl = { version = "0.10", optional = true }
-
-[features]
-default = ["rustls"]
-rustls = ["ureq/tls"]
-native-tls = ["ureq/native-tls"]
-native-tls-vendored = ["native-tls", "openssl/vendored"]
