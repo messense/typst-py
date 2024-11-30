@@ -50,6 +50,18 @@ jobs:
           args: --release --out dist ${{ matrix.extra-build-args || '' }}
           sccache: 'true'
           manylinux: auto
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        env:
+          # Make psm compile, see https://github.com/rust-lang/stacker/issues/79
+          CFLAGS_s390x_unknown_linux_gnu: "-march=z10"
+          # Workaround ring 0.17 build issue
+          CFLAGS_aarch64_unknown_linux_gnu: "-D__ARM_ARCH=8"
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python3.13t ${{ matrix.extra-build-args || '' }}
+          sccache: 'true'
+          manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -74,6 +86,13 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: 'true'
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          maturin-version: '1.7.7-beta.1'
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python3.13t
+          sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -96,6 +115,12 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
+          sccache: 'true'
+      - name: Build free-threaded wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python3.13t
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
@@ -124,7 +149,7 @@ jobs:
       id-token: write
     name: Release
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: startsWith(github.ref, 'refs/tags/')
     needs: [linux, windows, macos, sdist]
     steps:
       - uses: actions/download-artifact@v3

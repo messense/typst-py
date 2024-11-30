@@ -4,13 +4,14 @@ build-backend = "maturin"
 
 [project]
 name = "typst"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = ["importlib-resources; python_version < '3.9'"]
+dynamic = ["version"]
 
 [tool.maturin]
 module-name = "typst._typst"
