@@ -50,10 +50,15 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> PyResult<Vec<Vec<u8>>> {
+    fn compile(
+        &mut self,
+        format: Option<&str>,
+        ppi: Option<f32>,
+        pdf_standards: &[typst_pdf::PdfStandard],
+    ) -> PyResult<Vec<Vec<u8>>> {
         let buffer = self
             .world
-            .compile(format, ppi)
+            .compile(format, ppi, pdf_standards)
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         Ok(buffer)
     }
@@ -121,13 +126,14 @@ impl Compiler {
     }
 
     /// Compile a typst file to PDF
-    #[pyo3(name = "compile", signature = (output = None, format = None, ppi = None))]
+    #[pyo3(name = "compile", signature = (output = None, format = None, ppi = None, pdf_standards = Vec::new()))]
     fn py_compile(
         &mut self,
         py: Python<'_>,
         output: Option<PathBuf>,
         format: Option<&str>,
         ppi: Option<f32>,
+        #[pyo3(from_py_with = "extract_pdf_standards")] pdf_standards: Vec<typst_pdf::PdfStandard>,
     ) -> PyResult<PyObject> {
         if let Some(output) = output {
             // if format is None and output with postfix ".pdf", ".png" and ".svg" is
@@ -147,7 +153,7 @@ impl Compiler {
                     }
                 }
             };
-            let buffers = py.allow_threads(|| self.compile(format, ppi))?;
+            let buffers = py.allow_threads(|| self.compile(format, ppi, &pdf_standards))?;
 
             let can_handle_multiple =
                 output_template::has_indexable_template(output.to_str().unwrap());
@@ -169,7 +175,7 @@ impl Compiler {
             }
             Ok(py.None())
         } else {
-            let buffers = py.allow_threads(|| self.compile(format, ppi))?;
+            let buffers = py.allow_threads(|| self.compile(format, ppi, &pdf_standards))?;
             if buffers.len() == 1 {
                 // Return a single buffer as a single byte string
                 Ok(PyBytes::new(py, &buffers[0]).into())
@@ -200,7 +206,7 @@ impl Compiler {
 
 /// Compile a typst document to PDF
 #[pyfunction]
-#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None, sys_inputs = HashMap::new()))]
+#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None, sys_inputs = HashMap::new(), pdf_standards = Vec::new()))]
 #[allow(clippy::too_many_arguments)]
 fn compile(
     py: Python<'_>,
@@ -211,9 +217,10 @@ fn compile(
     format: Option<&str>,
     ppi: Option<f32>,
     sys_inputs: HashMap<String, String>,
+    #[pyo3(from_py_with = "extract_pdf_standards")] pdf_standards: Vec<typst_pdf::PdfStandard>,
 ) -> PyResult<PyObject> {
     let mut compiler = Compiler::new(input, root, font_paths, sys_inputs)?;
-    compiler.py_compile(py, output, format, ppi)
+    compiler.py_compile(py, output, format, ppi, pdf_standards)
 }
 
 /// Query a typst document
@@ -243,4 +250,22 @@ fn _typst(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(compile, m)?)?;
     m.add_function(wrap_pyfunction!(py_query, m)?)?;
     Ok(())
+}
+
+fn extract_pdf_standard(obj: &Bound<'_, PyAny>) -> PyResult<typst_pdf::PdfStandard> {
+    match &*obj.extract::<std::borrow::Cow<'_, str>>()? {
+        "1.7" => Ok(typst_pdf::PdfStandard::V_1_7),
+        "a-2b" => Ok(typst_pdf::PdfStandard::A_2b),
+        s => Err(PyValueError::new_err(format!("unknown pdf standard: {s}"))),
+    }
+}
+
+fn extract_pdf_standards(obj: &Bound<'_, PyAny>) -> PyResult<Vec<typst_pdf::PdfStandard>> {
+    if obj.is_none() {
+        Ok(vec![])
+    } else if let Ok(s) = obj.downcast::<PyList>() {
+        s.iter().map(|s| extract_pdf_standard(&s)).collect()
+    } else {
+        extract_pdf_standard(obj).map(|s| vec![s])
+    }
 }

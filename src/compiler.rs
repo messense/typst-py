@@ -14,7 +14,12 @@ type CodespanResult<T> = Result<T, CodespanError>;
 type CodespanError = codespan_reporting::files::Error;
 
 impl SystemWorld {
-    pub fn compile(&mut self, format: Option<&str>, ppi: Option<f32>) -> StrResult<Vec<Vec<u8>>> {
+    pub fn compile(
+        &mut self,
+        format: Option<&str>,
+        ppi: Option<f32>,
+        pdf_standards: &[typst_pdf::PdfStandard],
+    ) -> StrResult<Vec<Vec<u8>>> {
         // Reset everything and ensure that the main file is present.
         self.reset();
         self.source(self.main()).map_err(|err| err.to_string())?;
@@ -26,7 +31,11 @@ impl SystemWorld {
             Ok(document) => {
                 // Assert format is "pdf" or "png" or "svg"
                 match format.unwrap_or("pdf").to_ascii_lowercase().as_str() {
-                    "pdf" => Ok(vec![export_pdf(&document, self)?]),
+                    "pdf" => Ok(vec![export_pdf(
+                        &document,
+                        self,
+                        typst_pdf::PdfStandards::new(pdf_standards)?,
+                    )?]),
                     "png" => Ok(export_image(&document, ImageExportFormat::Png, ppi)?),
                     "svg" => Ok(export_image(&document, ImageExportFormat::Svg, ppi)?),
                     fmt => Err(eco_format!("unknown format: {fmt}")),
@@ -39,13 +48,18 @@ impl SystemWorld {
 
 /// Export to a PDF.
 #[inline]
-fn export_pdf(document: &Document, world: &SystemWorld) -> StrResult<Vec<u8>> {
+fn export_pdf(
+    document: &Document,
+    world: &SystemWorld,
+    standards: typst_pdf::PdfStandards,
+) -> StrResult<Vec<u8>> {
     let ident = world.input().to_string_lossy();
     let buffer = typst_pdf::pdf(
         document,
         &typst_pdf::PdfOptions {
             ident: typst::foundations::Smart::Custom(&ident),
             timestamp: now(),
+            standards,
             ..Default::default()
         },
     )
