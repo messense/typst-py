@@ -60,7 +60,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist -i python3.13t
           sccache: "true"
-          manylinux: auto
+          manylinux: ${{ matrix.platform.manylinux || 'auto' }}
           before-script-linux: |
             which yum > /dev/null && yum install -y perl-IPC-Cmd
       - name: Upload wheels
