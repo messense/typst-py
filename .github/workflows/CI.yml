@@ -24,13 +24,13 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform.runner || 'ubuntu-latest' }}
     strategy:
       matrix:
         platform:
           - target: x86_64
           - target: aarch64
-            manylinux: manylinux_2_28
+            runner: ubuntu-24.04-arm
           - target: armv7
           - target: s390x
           - target: ppc64le
