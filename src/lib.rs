@@ -96,11 +96,18 @@ impl Compiler {
 impl Compiler {
     /// Create a new typst compiler instance
     #[new]
-    #[pyo3(signature = (input, root = None, font_paths = Vec::new(), sys_inputs = HashMap::new()))]
+    #[pyo3(signature = (
+        input,
+        root = None,
+        font_paths = Vec::new(),
+        ignore_system_fonts = false,
+        sys_inputs = HashMap::new()
+    ))]
     fn new(
         input: PathBuf,
         root: Option<PathBuf>,
         font_paths: Vec<PathBuf>,
+        ignore_system_fonts: bool,
         sys_inputs: HashMap<String, String>,
     ) -> PyResult<Self> {
         let input = input.canonicalize()?;
@@ -120,6 +127,7 @@ impl Compiler {
                     .map(|(k, v)| (k.into(), Value::Str(v.into()))),
             ))
             .font_paths(font_paths)
+            .ignore_system_fonts(ignore_system_fonts)
             .build()
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         Ok(Self { world })
@@ -206,7 +214,16 @@ impl Compiler {
 
 /// Compile a typst document to PDF
 #[pyfunction]
-#[pyo3(signature = (input, output = None, root = None, font_paths = Vec::new(), format = None, ppi = None, sys_inputs = HashMap::new(), pdf_standards = Vec::new()))]
+#[pyo3(signature = (
+    input,
+    output = None,
+    root = None,
+    font_paths = Vec::new(),
+    ignore_system_fonts = false,
+    format = None, ppi = None,
+    sys_inputs = HashMap::new(),
+    pdf_standards = Vec::new()
+))]
 #[allow(clippy::too_many_arguments)]
 fn compile(
     py: Python<'_>,
@@ -214,18 +231,32 @@ fn compile(
     output: Option<PathBuf>,
     root: Option<PathBuf>,
     font_paths: Vec<PathBuf>,
+    ignore_system_fonts: bool,
     format: Option<&str>,
     ppi: Option<f32>,
     sys_inputs: HashMap<String, String>,
     #[pyo3(from_py_with = "extract_pdf_standards")] pdf_standards: Vec<typst_pdf::PdfStandard>,
 ) -> PyResult<PyObject> {
-    let mut compiler = Compiler::new(input, root, font_paths, sys_inputs)?;
+    let mut compiler = Compiler::new(input, root, font_paths, ignore_system_fonts, sys_inputs)?;
     compiler.py_compile(py, output, format, ppi, pdf_standards)
 }
 
 /// Query a typst document
 #[pyfunction]
-#[pyo3(name = "query", signature = (input, selector, field = None, one = false, format = None, root = None, font_paths = Vec::new(), sys_inputs = HashMap::new()))]
+#[pyo3(
+    name = "query",
+    signature = (
+        input,
+        selector,
+        field = None,
+        one = false,
+        format = None,
+        root = None,
+        font_paths = Vec::new(),
+        ignore_system_fonts = false,
+        sys_inputs = HashMap::new()
+    )
+)]
 #[allow(clippy::too_many_arguments)]
 fn py_query(
     py: Python<'_>,
@@ -236,9 +267,10 @@ fn py_query(
     format: Option<&str>,
     root: Option<PathBuf>,
     font_paths: Vec<PathBuf>,
+    ignore_system_fonts: bool,
     sys_inputs: HashMap<String, String>,
 ) -> PyResult<PyObject> {
-    let mut compiler = Compiler::new(input, root, font_paths, sys_inputs)?;
+    let mut compiler = Compiler::new(input, root, font_paths, ignore_system_fonts, sys_inputs)?;
     compiler.py_query(py, selector, field, one, format)
 }
 

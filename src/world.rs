@@ -139,6 +139,7 @@ pub struct SystemWorldBuilder {
     root: PathBuf,
     main: PathBuf,
     font_paths: Vec<PathBuf>,
+    ignore_system_fonts: bool,
     inputs: Dict,
 }
 
@@ -148,6 +149,7 @@ impl SystemWorldBuilder {
             root,
             main,
             font_paths: Vec::new(),
+            ignore_system_fonts: false,
             inputs: Dict::default(),
         }
     }
@@ -157,13 +159,20 @@ impl SystemWorldBuilder {
         self
     }
 
+    pub fn ignore_system_fonts(mut self, ignore: bool) -> Self {
+        self.ignore_system_fonts = ignore;
+        self
+    }
+
     pub fn inputs(mut self, inputs: Dict) -> Self {
         self.inputs = inputs;
         self
     }
 
     pub fn build(self) -> StrResult<SystemWorld> {
-        let fonts = FontSearcher::new().search_with(&self.font_paths);
+        let fonts = FontSearcher::new()
+            .include_system_fonts(!self.ignore_system_fonts)
+            .search_with(&self.font_paths);
 
         let input = self.main.canonicalize().map_err(|_| {
             eco_format!("input file not found (searched at {})", self.main.display())
