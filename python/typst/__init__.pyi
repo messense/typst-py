@@ -9,6 +9,7 @@ class Compiler:
         input: PathLike,
         root: Optional[PathLike] = None,
         font_paths: List[PathLike] = [],
+        ignore_system_fonts: bool = False,
         sys_inputs: Dict[str, str] = {},
         pdf_standards: Optional[Union[Literal["1.7", "a-2b"], List[Literal["1.7", "a-2b"]]]] = []
     ) -> None:
@@ -17,6 +18,7 @@ class Compiler:
             input (PathLike): Project's main .typ file.
             root (Optional[PathLike], optional): Root path for the Typst project.
             font_paths (List[PathLike]): Folders with fonts.
+            ignore_system_fonts (bool): Ignore system fonts.
             sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
         """
 
@@ -60,6 +62,7 @@ def compile(
     output: PathLike,
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
+    ignore_system_fonts: bool = False,
     format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
@@ -71,6 +74,7 @@ def compile(
     output: None = None,
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
+    ignore_system_fonts: bool = False,
     format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
@@ -81,6 +85,7 @@ def compile(
     output: Optional[PathLike] = None,
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
+    ignore_system_fonts: bool = False,
     format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
@@ -93,6 +98,7 @@ def compile(
         Allowed extensions are `.pdf`, `.svg` and `.png`
         root (Optional[PathLike], optional): Root path for the Typst project.
         font_paths (List[PathLike]): Folders with fonts.
+        ignore_system_fonts (bool): Ignore system fonts
         format (Optional[str]): Output format.
         Allowed values are `pdf`, `svg` and `png`.
         ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
@@ -109,6 +115,7 @@ def query(
     format: Optional[Literal["json", "yaml"]] = None,
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
+    ignore_system_fonts: bool = False,
     sys_inputs: Dict[str, str] = {},
 ) -> str:
     """Query a Typst document.
@@ -120,6 +127,7 @@ def query(
         format (Optional[str]): Output format, `json` or `yaml`.
         root (Optional[PathLike], optional): Root path for the Typst project.
         font_paths (List[PathLike]): Folders with fonts.
+        ignore_system_fonts (bool): Ignore system fonts
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
     Returns:
         str: Return the query result.
