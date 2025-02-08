@@ -4,7 +4,7 @@ use codespan_reporting::term::{self, termcolor};
 use ecow::{eco_format, EcoString};
 use typst::diag::{Severity, SourceDiagnostic, StrResult, Warned};
 use typst::foundations::Datetime;
-use typst::model::Document;
+use typst::layout::PagedDocument;
 use typst::syntax::{FileId, Source, Span};
 use typst::{World, WorldExt};
 
@@ -49,7 +49,7 @@ impl SystemWorld {
 /// Export to a PDF.
 #[inline]
 fn export_pdf(
-    document: &Document,
+    document: &PagedDocument,
     world: &SystemWorld,
     standards: typst_pdf::PdfStandards,
 ) -> StrResult<Vec<u8>> {
@@ -58,7 +58,7 @@ fn export_pdf(
         document,
         &typst_pdf::PdfOptions {
             ident: typst::foundations::Smart::Custom(&ident),
-            timestamp: now(),
+            timestamp: now().map(typst_pdf::Timestamp::new_utc),
             standards,
             ..Default::default()
         },
@@ -91,7 +91,7 @@ enum ImageExportFormat {
 
 /// Export the frames to PNGs or SVGs.
 fn export_image(
-    document: &Document,
+    document: &PagedDocument,
     fmt: ImageExportFormat,
     ppi: Option<f32>,
 ) -> StrResult<Vec<Vec<u8>>> {

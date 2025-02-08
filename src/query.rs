@@ -2,11 +2,11 @@ use comemo::Track;
 use ecow::{eco_format, EcoString};
 use serde::Serialize;
 use typst::diag::{bail, StrResult, Warned};
-use typst::eval::{eval_string, EvalMode};
 use typst::foundations::{Content, IntoValue, LocatableSelector, Scope};
-use typst::model::Document;
+use typst::layout::PagedDocument;
 use typst::syntax::Span;
 use typst::World;
+use typst_eval::{eval_string, EvalMode};
 
 use crate::world::SystemWorld;
 
@@ -68,9 +68,10 @@ pub fn query(world: &mut SystemWorld, command: &QueryCommand) -> StrResult<Strin
 fn retrieve(
     world: &dyn World,
     command: &QueryCommand,
-    document: &Document,
+    document: &PagedDocument,
 ) -> StrResult<Vec<Content>> {
     let selector = eval_string(
+        &typst::ROUTINES,
         world.track(),
         &command.selector,
         Span::detached(),
