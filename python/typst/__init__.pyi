@@ -11,7 +11,7 @@ class Compiler:
         font_paths: List[PathLike] = [],
         ignore_system_fonts: bool = False,
         sys_inputs: Dict[str, str] = {},
-        pdf_standards: Optional[Union[Literal["1.7", "a-2b"], List[Literal["1.7", "a-2b"]]]] = []
+        pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
     ) -> None:
         """Initialize a Typst compiler.
         Args:
@@ -66,7 +66,7 @@ def compile(
     format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b"], List[Literal["1.7", "a-2b"]]]] = []
+    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
 ) -> None: ...
 @overload
 def compile(
@@ -78,7 +78,7 @@ def compile(
     format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b"], List[Literal["1.7", "a-2b"]]]] = []
+    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
 ) -> bytes: ...
 def compile(
     input: PathLike,
@@ -89,7 +89,7 @@ def compile(
     format: Optional[Literal["pdf", "svg", "png"]] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b"], List[Literal["1.7", "a-2b"]]]] = []
+    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
 ) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
     Args:

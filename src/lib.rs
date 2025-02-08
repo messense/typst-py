@@ -288,6 +288,7 @@ fn extract_pdf_standard(obj: &Bound<'_, PyAny>) -> PyResult<typst_pdf::PdfStanda
     match &*obj.extract::<std::borrow::Cow<'_, str>>()? {
         "1.7" => Ok(typst_pdf::PdfStandard::V_1_7),
         "a-2b" => Ok(typst_pdf::PdfStandard::A_2b),
+        "a-3b" => Ok(typst_pdf::PdfStandard::A_3b),
         s => Err(PyValueError::new_err(format!("unknown pdf standard: {s}"))),
     }
 }
