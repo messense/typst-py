@@ -246,7 +246,7 @@ impl FileSlot {
         let id = self.id;
         self.file.get_or_init(
             || system_path(root, id, package_storage),
-            |data, _| Ok(data.into()),
+            |data, _| Ok(Bytes::new(data)),
         )
     }
 }

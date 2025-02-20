@@ -1,6 +1,6 @@
 [package]
 name = "typst-py"
-version = "0.12.3"
+version = "0.13.0"
 edition = "2021"
 description = "Python binding to typst"
 license = "Apache-2.0"
@@ -24,12 +24,13 @@ pyo3 = { version = "0.23.3", features = ["abi3-py38", "generate-import-lib"] }
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
-typst = "0.12.0"
-typst-kit = { version = "0.12.0", features = [
+typst = "0.13.0"
+typst-kit = { version = "0.13.0", features = [
     "downloads",
     "embed-fonts",
     "vendor-openssl",
 ] }
-typst-pdf = "0.12.0"
-typst-svg = "0.12.0"
-typst-render = "0.12.0"
+typst-pdf = "0.13.0"
+typst-svg = "0.13.0"
+typst-render = "0.13.0"
+typst-eval = "0.13.0"
