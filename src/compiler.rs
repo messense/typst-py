@@ -4,6 +4,7 @@ use codespan_reporting::term::{self, termcolor};
 use ecow::{eco_format, EcoString};
 use typst::diag::{Severity, SourceDiagnostic, StrResult, Warned};
 use typst::foundations::Datetime;
+use typst::html::HtmlDocument;
 use typst::layout::PagedDocument;
 use typst::syntax::{FileId, Source, Span};
 use typst::{World, WorldExt};
@@ -38,12 +39,28 @@ impl SystemWorld {
                     )?]),
                     "png" => Ok(export_image(&document, ImageExportFormat::Png, ppi)?),
                     "svg" => Ok(export_image(&document, ImageExportFormat::Svg, ppi)?),
+                    "html" => {
+                        let Warned { output, warnings } = typst::compile::<HtmlDocument>(self);
+                        Ok(vec![export_html(&output.unwrap(), self)?])
+                    }
                     fmt => Err(eco_format!("unknown format: {fmt}")),
                 }
             }
             Err(errors) => Err(format_diagnostics(self, &errors, &warnings).unwrap().into()),
         }
     }
+}
+
+/// Export to a html.
+#[inline]
+fn export_html(document: &HtmlDocument, world: &SystemWorld) -> StrResult<Vec<u8>> {
+    let buffer =
+        typst_html::html(document).map_err(|e| match format_diagnostics(world, &e, &[]) {
+            Ok(e) => EcoString::from(e),
+            Err(err) => eco_format!("failed to print diagnostics ({err})"),
+        })?;
+
+    Ok(buffer.into())
 }
 
 /// Export to a PDF.

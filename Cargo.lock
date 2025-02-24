@@ -2495,6 +2495,7 @@ dependencies = [
  "serde_yaml",
  "typst",
  "typst-eval",
+ "typst-html",
  "typst-kit",
  "typst-pdf",
  "typst-render",
