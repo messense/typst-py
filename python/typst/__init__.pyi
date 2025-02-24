@@ -2,6 +2,7 @@ import pathlib
 from typing import List, Optional, TypeVar, overload, Dict, Union, Literal
 
 PathLike = TypeVar("PathLike", str, pathlib.Path)
+OutputFormat = Literal["pdf", "svg", "png", "html"]
 
 class Compiler:
     def __init__(
@@ -25,7 +26,7 @@ class Compiler:
     def compile(
         self,
         output: Optional[PathLike] = None,
-        format: Optional[Literal["pdf", "svg", "png"]] = None,
+        format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
     ) -> Optional[Union[bytes, List[bytes]]]:
         """Compile a Typst project.
@@ -63,7 +64,7 @@ def compile(
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
     ignore_system_fonts: bool = False,
-    format: Optional[Literal["pdf", "svg", "png"]] = None,
+    format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
     pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
@@ -75,7 +76,7 @@ def compile(
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
     ignore_system_fonts: bool = False,
-    format: Optional[Literal["pdf", "svg", "png"]] = None,
+    format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
     pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
@@ -86,7 +87,7 @@ def compile(
     root: Optional[PathLike] = None,
     font_paths: List[PathLike] = [],
     ignore_system_fonts: bool = False,
-    format: Optional[Literal["pdf", "svg", "png"]] = None,
+    format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
     pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
