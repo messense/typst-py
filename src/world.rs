@@ -186,7 +186,12 @@ impl SystemWorldBuilder {
             input,
             root: self.root,
             main: FileId::new(None, main_path),
-            library: LazyHash::new(LibraryBuilder::default().with_inputs(self.inputs).build()),
+            library: LazyHash::new(
+                LibraryBuilder::default()
+                    .with_features(vec![typst::Feature::Html].into_iter().collect())
+                    .with_inputs(self.inputs)
+                    .build(),
+            ),
             book: LazyHash::new(fonts.book),
             fonts: fonts.fonts,
             slots: Mutex::default(),
