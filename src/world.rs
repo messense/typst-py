@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 use chrono::{DateTime, Datelike, Local};
-use ecow::eco_format;
 use typst::diag::{FileError, FileResult, StrResult};
 use typst::foundations::{Bytes, Datetime, Dict};
 use typst::syntax::{FileId, Source, VirtualPath};
@@ -17,14 +16,12 @@ use typst_kit::{
 
 use std::collections::HashMap;
 
-use crate::download::SlientDownload;
+use crate::{download::SlientDownload, Input};
 
 /// A world that provides access to the operating system.
 pub struct SystemWorld {
     /// The working directory.
     workdir: Option<PathBuf>,
-    /// The canonical path to the input file.
-    input: PathBuf,
     /// The root relative to which absolute paths are resolved.
     root: PathBuf,
     /// The input path.
@@ -86,8 +83,8 @@ impl World for SystemWorld {
 }
 
 impl SystemWorld {
-    pub fn builder(root: PathBuf, main: PathBuf) -> SystemWorldBuilder {
-        SystemWorldBuilder::new(root, main)
+    pub fn builder(root: PathBuf, input: Input) -> SystemWorldBuilder {
+        SystemWorldBuilder::new(root, input)
     }
 
     /// Access the canonical slot for the given file id.
@@ -97,11 +94,6 @@ impl SystemWorld {
     {
         let mut map = self.slots.lock().unwrap();
         f(map.entry(id).or_insert_with(|| FileSlot::new(id)))
-    }
-
-    /// The id of the main source file.
-    pub fn main(&self) -> FileId {
-        self.main
     }
 
     /// The root relative to which absolute paths are resolved.
@@ -114,19 +106,6 @@ impl SystemWorld {
         self.workdir.as_deref().unwrap_or(Path::new("."))
     }
 
-    /// Reset the compilation state in preparation of a new compilation.
-    pub fn reset(&mut self) {
-        for slot in self.slots.lock().unwrap().values_mut() {
-            slot.reset();
-        }
-        self.now.take();
-    }
-
-    /// Return the canonical path to the input file.
-    pub fn input(&self) -> &PathBuf {
-        &self.input
-    }
-
     /// Lookup a source file by id.
     #[track_caller]
     pub fn lookup(&self, id: FileId) -> Source {
@@ -137,17 +116,17 @@ impl SystemWorld {
 
 pub struct SystemWorldBuilder {
     root: PathBuf,
-    main: PathBuf,
+    input: Input,
     font_paths: Vec<PathBuf>,
     ignore_system_fonts: bool,
     inputs: Dict,
 }
 
 impl SystemWorldBuilder {
-    pub fn new(root: PathBuf, main: PathBuf) -> Self {
+    pub fn new(root: PathBuf, input: Input) -> Self {
         Self {
             root,
-            main,
+            input,
             font_paths: Vec::new(),
             ignore_system_fonts: false,
             inputs: Dict::default(),
@@ -174,18 +153,36 @@ impl SystemWorldBuilder {
             .include_system_fonts(!self.ignore_system_fonts)
             .search_with(&self.font_paths);
 
-        let input = self.main.canonicalize().map_err(|_| {
-            eco_format!("input file not found (searched at {})", self.main.display())
-        })?;
-        // Resolve the virtual path of the main file within the project root.
-        let main_path = VirtualPath::within_root(&self.main, &self.root)
-            .ok_or("input file must be contained in project root")?;
+        let mut slots = HashMap::new();
+        let main = match self.input {
+            Input::Path(path) => {
+                // Resolve the virtual path of the main file within the project root.
+                let path = path
+                    .canonicalize()
+                    .map_err(|err| format!("Failed to canonicalize path: {}", err))?;
+                FileId::new(
+                    None,
+                    VirtualPath::within_root(&path, &self.root)
+                        .ok_or("input file must be contained in project root")?,
+                )
+            }
+            Input::Bytes(bytes) => {
+                // Fake file ID
+                let file_id = FileId::new_fake(VirtualPath::new("<bytes>"));
+                let mut file_slot = FileSlot::new(file_id);
+                file_slot
+                    .source
+                    .init(Source::new(file_id, decode_utf8(&bytes)?.to_string()));
+                file_slot.file.init(Bytes::new(bytes));
+                slots.insert(file_id, file_slot);
+                file_id
+            }
+        };
 
         let world = SystemWorld {
             workdir: std::env::current_dir().ok(),
-            input,
             root: self.root,
-            main: FileId::new(None, main_path),
+            main,
             library: LazyHash::new(
                 LibraryBuilder::default()
                     .with_features(vec![typst::Feature::Html].into_iter().collect())
@@ -194,7 +191,7 @@ impl SystemWorldBuilder {
             ),
             book: LazyHash::new(fonts.book),
             fonts: fonts.fonts,
-            slots: Mutex::default(),
+            slots: Mutex::new(slots),
             package_storage: PackageStorage::new(None, None, crate::download::downloader()),
             now: OnceLock::new(),
         };
@@ -224,17 +221,14 @@ impl FileSlot {
         }
     }
 
-    /// Marks the file as not yet accessed in preparation of the next
-    /// compilation.
-    fn reset(&mut self) {
-        self.source.reset();
-        self.file.reset();
-    }
-
-    fn source(&mut self, root: &Path, package_storage: &PackageStorage) -> FileResult<Source> {
+    fn source(
+        &mut self,
+        project_root: &Path,
+        package_storage: &PackageStorage,
+    ) -> FileResult<Source> {
         let id = self.id;
         self.source.get_or_init(
-            || system_path(root, id, package_storage),
+            || system_path(project_root, id, package_storage),
             |data, prev| {
                 let text = decode_utf8(&data)?;
                 if let Some(mut prev) = prev {
@@ -247,10 +241,10 @@ impl FileSlot {
         )
     }
 
-    fn file(&mut self, root: &Path, package_storage: &PackageStorage) -> FileResult<Bytes> {
+    fn file(&mut self, project_root: &Path, package_storage: &PackageStorage) -> FileResult<Bytes> {
         let id = self.id;
         self.file.get_or_init(
-            || system_path(root, id, package_storage),
+            || system_path(project_root, id, package_storage),
             |data, _| Ok(Bytes::new(data)),
         )
     }
@@ -292,10 +286,9 @@ impl<T: Clone> SlotCell<T> {
         }
     }
 
-    /// Marks the cell as not yet accessed in preparation of the next
-    /// compilation.
-    fn reset(&mut self) {
-        self.accessed = false;
+    fn init(&mut self, data: T) {
+        self.data = Some(Ok(data));
+        self.accessed = true;
     }
 
     /// Gets the contents of the cell or initialize them.

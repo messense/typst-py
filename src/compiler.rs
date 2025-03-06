@@ -7,7 +7,7 @@ use typst::foundations::Datetime;
 use typst::html::HtmlDocument;
 use typst::layout::PagedDocument;
 use typst::syntax::{FileId, Source, Span};
-use typst::{World, WorldExt};
+use typst::WorldExt;
 
 use crate::world::SystemWorld;
 
@@ -21,10 +21,6 @@ impl SystemWorld {
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
     ) -> StrResult<Vec<Vec<u8>>> {
-        // Reset everything and ensure that the main file is present.
-        self.reset();
-        self.source(self.main()).map_err(|err| err.to_string())?;
-
         let Warned { output, warnings } = typst::compile(self);
 
         match output {
@@ -40,7 +36,10 @@ impl SystemWorld {
                     "png" => Ok(export_image(&document, ImageExportFormat::Png, ppi)?),
                     "svg" => Ok(export_image(&document, ImageExportFormat::Svg, ppi)?),
                     "html" => {
-                        let Warned { output, warnings } = typst::compile::<HtmlDocument>(self);
+                        let Warned {
+                            output,
+                            warnings: _,
+                        } = typst::compile::<HtmlDocument>(self);
                         Ok(vec![export_html(&output.unwrap(), self)?])
                     }
                     fmt => Err(eco_format!("unknown format: {fmt}")),
@@ -70,11 +69,10 @@ fn export_pdf(
     world: &SystemWorld,
     standards: typst_pdf::PdfStandards,
 ) -> StrResult<Vec<u8>> {
-    let ident = world.input().to_string_lossy();
     let buffer = typst_pdf::pdf(
         document,
         &typst_pdf::PdfOptions {
-            ident: typst::foundations::Smart::Custom(&ident),
+            ident: typst::foundations::Smart::Auto,
             timestamp: now().map(typst_pdf::Timestamp::new_utc),
             standards,
             ..Default::default()

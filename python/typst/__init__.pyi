@@ -1,22 +1,22 @@
 import pathlib
 from typing import List, Optional, TypeVar, overload, Dict, Union, Literal
 
-PathLike = TypeVar("PathLike", str, pathlib.Path)
+Input = TypeVar("Input", str, pathlib.Path, bytes)
 OutputFormat = Literal["pdf", "svg", "png", "html"]
 
 class Compiler:
     def __init__(
         self,
-        input: PathLike,
-        root: Optional[PathLike] = None,
-        font_paths: List[PathLike] = [],
+        input: Input,
+        root: Optional[Input] = None,
+        font_paths: List[Input] = [],
         ignore_system_fonts: bool = False,
         sys_inputs: Dict[str, str] = {},
         pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
     ) -> None:
         """Initialize a Typst compiler.
         Args:
-            input (PathLike): Project's main .typ file.
+            input: .typ file bytes or path to project's main .typ file.
             root (Optional[PathLike], optional): Root path for the Typst project.
             font_paths (List[PathLike]): Folders with fonts.
             ignore_system_fonts (bool): Ignore system fonts.
@@ -25,7 +25,7 @@ class Compiler:
 
     def compile(
         self,
-        output: Optional[PathLike] = None,
+        output: Optional[Input] = None,
         format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
     ) -> Optional[Union[bytes, List[bytes]]]:
@@ -59,10 +59,10 @@ class Compiler:
 
 @overload
 def compile(
-    input: PathLike,
-    output: PathLike,
-    root: Optional[PathLike] = None,
-    font_paths: List[PathLike] = [],
+    input: Input,
+    output: Input,
+    root: Optional[Input] = None,
+    font_paths: List[Input] = [],
     ignore_system_fonts: bool = False,
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
@@ -71,10 +71,10 @@ def compile(
 ) -> None: ...
 @overload
 def compile(
-    input: PathLike,
+    input: Input,
     output: None = None,
-    root: Optional[PathLike] = None,
-    font_paths: List[PathLike] = [],
+    root: Optional[Input] = None,
+    font_paths: List[Input] = [],
     ignore_system_fonts: bool = False,
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
@@ -82,10 +82,10 @@ def compile(
     pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
 ) -> bytes: ...
 def compile(
-    input: PathLike,
-    output: Optional[PathLike] = None,
-    root: Optional[PathLike] = None,
-    font_paths: List[PathLike] = [],
+    input: Input,
+    output: Optional[Input] = None,
+    root: Optional[Input] = None,
+    font_paths: List[Input] = [],
     ignore_system_fonts: bool = False,
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
@@ -94,7 +94,7 @@ def compile(
 ) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
     Args:
-        input (PathLike): Project's main .typ file.
+        input: .typ file bytes or path to project's main .typ file.
         output (Optional[PathLike], optional): Path to save the compiled file.
         Allowed extensions are `.pdf`, `.svg` and `.png`
         root (Optional[PathLike], optional): Root path for the Typst project.
@@ -109,19 +109,19 @@ def compile(
     """
 
 def query(
-    input: PathLike,
+    input: Input,
     selector: str,
     field: Optional[str] = None,
     one: bool = False,
     format: Optional[Literal["json", "yaml"]] = None,
-    root: Optional[PathLike] = None,
-    font_paths: List[PathLike] = [],
+    root: Optional[Input] = None,
+    font_paths: List[Input] = [],
     ignore_system_fonts: bool = False,
     sys_inputs: Dict[str, str] = {},
 ) -> str:
     """Query a Typst document.
     Args:
-        input (PathLike): Project's main .typ file.
+        input: .typ file bytes or path to project's main .typ file.
         selector (str): Typst selector like `<label>`.
         field (Optional[str], optional): Field to query.
         one (bool, optional): Query only one element.

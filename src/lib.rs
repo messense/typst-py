@@ -43,6 +43,12 @@ mod output_template {
     }
 }
 
+#[derive(FromPyObject)]
+pub enum Input {
+    Path(PathBuf),
+    Bytes(Vec<u8>),
+}
+
 /// A typst compiler
 #[pyclass(module = "typst._typst")]
 pub struct Compiler {
@@ -104,17 +110,19 @@ impl Compiler {
         sys_inputs = HashMap::new()
     ))]
     fn new(
-        input: PathBuf,
+        input: Input,
         root: Option<PathBuf>,
         font_paths: Vec<PathBuf>,
         ignore_system_fonts: bool,
         sys_inputs: HashMap<String, String>,
     ) -> PyResult<Self> {
-        let input = input.canonicalize()?;
         let root = if let Some(root) = root {
             root.canonicalize()?
-        } else if let Some(dir) = input.parent() {
-            dir.into()
+        } else if let Input::Path(path) = &input {
+            path.canonicalize()?
+                .parent()
+                .map(Into::into)
+                .unwrap_or_else(|| PathBuf::new())
         } else {
             PathBuf::new()
         };
@@ -227,7 +235,7 @@ impl Compiler {
 #[allow(clippy::too_many_arguments)]
 fn compile(
     py: Python<'_>,
-    input: PathBuf,
+    input: Input,
     output: Option<PathBuf>,
     root: Option<PathBuf>,
     font_paths: Vec<PathBuf>,
@@ -260,7 +268,7 @@ fn compile(
 #[allow(clippy::too_many_arguments)]
 fn py_query(
     py: Python<'_>,
-    input: PathBuf,
+    input: Input,
     selector: &str,
     field: Option<&str>,
     one: bool,
