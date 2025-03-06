@@ -24,6 +24,10 @@ typst.compile("hello.typ", output="hello.pdf")
 # Compile `hello.typ` to PNG and save as `hello.png`
 typst.compile("hello.typ", output="hello.png", format="png", ppi=144.0)
 
+# Or pass `hello.typ` content as bytes
+with open("hello.typ", "rb") as f:
+    typst.compile(f.read(), output="hello.pdf")
+
 # Or return PDF content as bytes
 pdf_bytes = typst.compile("hello.typ")
 
