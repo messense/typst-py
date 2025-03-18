@@ -32,6 +32,6 @@ typst-kit = { version = "0.13.0", features = [
 ] }
 typst-pdf = "0.13.0"
 typst-svg = "0.13.0"
-typst-render = "0.13.0"
+typst-render = "0.13.1"
 typst-eval = "0.13.0"
 typst-html = "0.13.0"
