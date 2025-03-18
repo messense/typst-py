@@ -30,7 +30,7 @@ typst-kit = { version = "0.13.1", features = [
     "embed-fonts",
     "vendor-openssl",
 ] }
-typst-pdf = "0.13.0"
+typst-pdf = "0.13.1"
 typst-svg = "0.13.0"
 typst-render = "0.13.1"
 typst-eval = "0.13.0"
