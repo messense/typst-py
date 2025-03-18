@@ -25,7 +25,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 typst = "0.13.1"
-typst-kit = { version = "0.13.0", features = [
+typst-kit = { version = "0.13.1", features = [
     "downloads",
     "embed-fonts",
     "vendor-openssl",
