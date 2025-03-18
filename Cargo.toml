@@ -20,7 +20,7 @@ codespan-reporting = "0.11"
 comemo = "0.4.0"
 ecow = "0.2"
 pathdiff = "0.2"
-pyo3 = { version = "0.23.5", features = ["abi3-py38", "generate-import-lib"] }
+pyo3 = { version = "0.24.0", features = ["abi3-py38", "generate-import-lib"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
