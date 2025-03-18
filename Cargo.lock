@@ -2336,9 +2336,9 @@ dependencies = [
 
 [[package]]
 name = "typst-kit"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b59747c7f5bb5890ab1b8b6f4b9b9ae8645183bbfd0f6a967920ed1ceae15e16"
+checksum = "818fa9d54e1663fe20d15f6359945616cc4026d68c4de6c4eb0add7556fe2a90"
 dependencies = [
  "dirs",
  "ecow",
