@@ -47,6 +47,30 @@ import json
 values = json.loads(typst.query("hello.typ", "<note>", field="value", one=True))
 ```
 
+## Passing values
+
+You can pass values to the compiled Typst file with the `sys_inputs` argument. For example:
+
+```python
+import json
+import typst
+
+persons = [{"name": "John", "age": 35}, {"name": "Xoliswa", "age": 45}]
+sys_inputs = {"persons": json.dumps(persons)}
+
+typst.compile(input="main.typ", output="ages.pdf", sys_inputs=sys_inputs)
+```
+
+The following example shows how the passed data can be used in a Typst file.
+
+```
+#let persons = json(bytes(sys.inputs.persons))
+
+#for person in persons [
+  #person.name is #person.age years old. \
+]
+```
+
 ## License
 
 This work is released under the Apache-2.0 license. A copy of the license is provided in the [LICENSE](./LICENSE) file.
