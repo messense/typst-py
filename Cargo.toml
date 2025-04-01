@@ -16,7 +16,7 @@ chrono = { version = "0.4.40", default-features = false, features = [
     "clock",
     "std",
 ] }
-codespan-reporting = "0.11"
+codespan-reporting = "0.12"
 comemo = "0.4.0"
 ecow = "0.2"
 pathdiff = "0.2"
