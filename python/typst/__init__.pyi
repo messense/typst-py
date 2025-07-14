@@ -4,6 +4,25 @@ from typing import List, Optional, TypeVar, overload, Dict, Union, Literal
 Input = TypeVar("Input", str, pathlib.Path, bytes)
 OutputFormat = Literal["pdf", "svg", "png", "html"]
 
+
+class TypstError(RuntimeError):
+    """A structured error raised during Typst compilation or querying.
+    
+    This exception provides structured access to Typst diagnostics including
+    error messages, hints, and stack traces.
+    
+    Attributes:
+        message (str): The main error message
+        hints (list[str]): List of helpful hints for resolving the error
+        trace (list[str]): Stack trace information showing error location context
+    """
+    message: str
+    hints: List[str]
+    trace: List[str]
+    
+    def __init__(self, message: str, hints: Optional[List[str]] = None, trace: Optional[List[str]] = None) -> None: ...
+
+
 class Compiler:
     def __init__(
         self,

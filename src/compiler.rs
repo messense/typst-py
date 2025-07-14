@@ -48,6 +48,45 @@ impl SystemWorld {
             Err(errors) => Err(format_diagnostics(self, &errors, &warnings).unwrap().into()),
         }
     }
+
+    /// Compile and return structured diagnostics for error handling
+    pub fn compile_with_diagnostics(
+        &mut self,
+        format: Option<&str>,
+        ppi: Option<f32>,
+        pdf_standards: &[typst_pdf::PdfStandard],
+    ) -> Result<Vec<Vec<u8>>, (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
+        let Warned { output, warnings } = typst::compile(self);
+
+        match output {
+            // Export the PDF / PNG.
+            Ok(document) => {
+                // Assert format is "pdf" or "png" or "svg"
+                let result = match format.unwrap_or("pdf").to_ascii_lowercase().as_str() {
+                    "pdf" => export_pdf(
+                        &document,
+                        self,
+                        typst_pdf::PdfStandards::new(pdf_standards).map_err(|e| {
+                            (vec![], vec![])
+                        })?,
+                    ).map(|pdf| vec![pdf]),
+                    "png" => export_image(&document, ImageExportFormat::Png, ppi),
+                    "svg" => export_image(&document, ImageExportFormat::Svg, ppi),
+                    "html" => {
+                        let Warned {
+                            output,
+                            warnings: _,
+                        } = typst::compile::<HtmlDocument>(self);
+                        export_html(&output.unwrap(), self).map(|html| vec![html])
+                    }
+                    _fmt => return Err((vec![], vec![])), // Return empty diagnostics for unknown format
+                };
+                
+                result.map_err(|_| (vec![], vec![]))
+            }
+            Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
+        }
+    }
 }
 
 /// Export to a html.
