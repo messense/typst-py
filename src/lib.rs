@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use pyo3::exceptions::{PyRuntimeError, PyValueError, PyUserWarning};
 use pyo3::create_exception;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyList, PyString, PyTuple};
+use pyo3::{IntoPy, PyObject};
+use pyo3::types::{PyBytes, PyList, PyString};
 
 use query::{query as typst_query, QueryCommand, SerializationFormat};
 use std::collections::HashMap;
@@ -73,21 +74,6 @@ impl TypstWarningDetails {
 pub struct CompilationResult {
     pub data: Vec<Vec<u8>>,
     pub warnings: Vec<TypstWarningDetails>,
-}
-
-impl TypstWarningDetails {
-    /// Convert to TypstWarning (requires GIL)
-    pub fn into_py_warning(self, py: Python<'_>) -> PyResult<PyErr> {
-        let warning = TypstWarning::new_err(self.message.clone());
-        let warning_obj = warning.value(py);
-        
-        // Set our structured data as attributes
-        warning_obj.setattr("message", self.message)?;
-        warning_obj.setattr("hints", self.hints)?;
-        warning_obj.setattr("trace", self.trace)?;
-        
-        Ok(warning)
-    }
 }
 
 mod output_template {
@@ -409,10 +395,9 @@ impl Compiler {
             }
             
             // Return (None, warnings) tuple
-            let tuple = (py.None(), warnings_list);
-            Ok(tuple.into_py(py))
+            Ok((py.None(), warnings_list).into_py(py))
         } else {
-            let compiled_data = if result.data.len() == 1 {
+            let compiled_data: PyObject = if result.data.len() == 1 {
                 // Return a single buffer as a single byte string
                 PyBytes::new(py, &result.data[0]).into()
             } else {
@@ -424,8 +409,7 @@ impl Compiler {
             };
             
             // Return (data, warnings) tuple
-            let tuple = (compiled_data, warnings_list);
-            Ok(tuple.into_py(py))
+            Ok((compiled_data, warnings_list).into_py(py))
         }
     }
 
