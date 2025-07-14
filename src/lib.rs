@@ -480,7 +480,7 @@ fn py_query(
 }
 
 /// Python binding to typst
-#[pymodule]
+#[pymodule(gil_used = false)]
 fn _typst(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<Compiler>()?;
