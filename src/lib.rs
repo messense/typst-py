@@ -23,15 +23,15 @@ create_exception!(typst, TypstError, PyRuntimeError);
 // TypstWarning inherits from UserWarning instead of RuntimeError since it's not an error
 create_exception!(typst, TypstWarning, PyUserWarning);
 
-/// Intermediate structure to hold error details without requiring GIL
+/// Intermediate structure to hold diagnostic details without requiring GIL
 #[derive(Debug, Clone)]
-pub struct TypstErrorDetails {
+pub struct TypstDiagnosticDetails {
     pub message: String,
     pub hints: Vec<String>,
     pub trace: Vec<String>,
 }
 
-impl TypstErrorDetails {
+impl TypstDiagnosticDetails {
     /// Convert to TypstError (requires GIL)
     pub fn into_py_err(self, py: Python<'_>) -> PyResult<PyErr> {
         let exception = TypstError::new_err(self.message.clone());
@@ -44,17 +44,7 @@ impl TypstErrorDetails {
         
         Ok(exception)
     }
-}
 
-/// Intermediate structure to hold warning details without requiring GIL
-#[derive(Debug, Clone)]
-pub struct TypstWarningDetails {
-    pub message: String,
-    pub hints: Vec<String>,
-    pub trace: Vec<String>,
-}
-
-impl TypstWarningDetails {
     /// Convert to TypstWarning (requires GIL)
     pub fn into_py_warning(self, py: Python<'_>) -> PyResult<PyErr> {
         let warning = TypstWarning::new_err(self.message.clone());
@@ -73,7 +63,7 @@ impl TypstWarningDetails {
 #[derive(Debug, Clone)]
 pub struct CompilationResult {
     pub data: Vec<Vec<u8>>,
-    pub warnings: Vec<TypstWarningDetails>,
+    pub warnings: Vec<TypstDiagnosticDetails>,
 }
 
 mod output_template {
@@ -106,11 +96,11 @@ mod output_template {
 }
 
 /// Create structured error details from diagnostics
-fn create_typst_error_details(
+fn create_typst_diagnostic_details(
     world: &SystemWorld,
     errors: &[SourceDiagnostic],
     warnings: &[SourceDiagnostic],
-) -> TypstErrorDetails {
+) -> TypstDiagnosticDetails {
     // Get the main error message by formatting all diagnostics
     let formatted_message = crate::compiler::format_diagnostics(world, errors, warnings)
         .unwrap_or_else(|_| "Failed to format diagnostic message".to_string());
@@ -132,7 +122,7 @@ fn create_typst_error_details(
         (Vec::new(), Vec::new())
     };
 
-    TypstErrorDetails {
+    TypstDiagnosticDetails {
         message: formatted_message,
         hints,
         trace,
@@ -143,7 +133,7 @@ fn create_typst_error_details(
 fn create_typst_warning_details_from_diagnostics(
     world: &SystemWorld,
     warnings: &[SourceDiagnostic],
-) -> Vec<TypstWarningDetails> {
+) -> Vec<TypstDiagnosticDetails> {
     warnings.iter().map(|warning| {
         // Format just this warning
         let formatted_message = crate::compiler::format_diagnostics(world, &[], &[warning.clone()])
@@ -157,7 +147,7 @@ fn create_typst_warning_details_from_diagnostics(
             format!("at {}", point.v)
         }).collect::<Vec<_>>();
 
-        TypstWarningDetails {
+        TypstDiagnosticDetails {
             message: formatted_message,
             hints,
             trace,
@@ -183,11 +173,11 @@ impl Compiler {
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> Result<Vec<Vec<u8>>, TypstErrorDetails> {
+    ) -> Result<Vec<Vec<u8>>, TypstDiagnosticDetails> {
         match self.world.compile_with_diagnostics(format, ppi, pdf_standards) {
             Ok((buffer, _warnings)) => Ok(buffer), // Ignore warnings for backward compatibility
             Err((errors, warnings)) => {
-                Err(create_typst_error_details(&self.world, &errors, &warnings))
+                Err(create_typst_diagnostic_details(&self.world, &errors, &warnings))
             }
         }
     }
@@ -197,7 +187,7 @@ impl Compiler {
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> Result<CompilationResult, TypstErrorDetails> {
+    ) -> Result<CompilationResult, TypstDiagnosticDetails> {
         match self.world.compile_with_diagnostics(format, ppi, pdf_standards) {
             Ok((buffer, warnings)) => {
                 let warning_details = create_typst_warning_details_from_diagnostics(&self.world, &warnings);
@@ -207,7 +197,7 @@ impl Compiler {
                 })
             },
             Err((errors, warnings)) => {
-                Err(create_typst_error_details(&self.world, &errors, &warnings))
+                Err(create_typst_diagnostic_details(&self.world, &errors, &warnings))
             }
         }
     }
