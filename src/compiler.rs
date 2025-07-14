@@ -1,6 +1,7 @@
 use chrono::{Datelike, Timelike};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term::{self, termcolor};
+use comemo;
 use ecow::{eco_format, EcoString};
 use typst::diag::{Severity, SourceDiagnostic, StrResult, Warned};
 use typst::foundations::Datetime;
@@ -23,6 +24,9 @@ impl SystemWorld {
         pdf_standards: &[typst_pdf::PdfStandard],
     ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
         let Warned { output, warnings } = typst::compile(self);
+        
+        // Evict comemo cache to limit memory usage after compilation
+        comemo::evict(10);
 
         match output {
             // Export the PDF / PNG.
@@ -43,6 +47,10 @@ impl SystemWorld {
                             output,
                             warnings: _,
                         } = typst::compile::<HtmlDocument>(self);
+                        
+                        // Evict comemo cache to limit memory usage after HTML compilation
+                        comemo::evict(10);
+                        
                         export_html(&output.unwrap(), self).map(|html| vec![html])
                     }
                     _fmt => return Err((vec![], vec![])), // Return empty diagnostics for unknown format
