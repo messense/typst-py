@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyString};
 
@@ -14,6 +15,28 @@ mod compiler;
 mod download;
 mod query;
 mod world;
+
+// Create a custom exception that inherits from RuntimeError
+create_exception!(typst, TypstError, PyRuntimeError);
+
+impl TypstError {
+    pub fn new_with_details(
+        py: Python<'_>,
+        message: String,
+        hints: Vec<String>,
+        trace: Vec<String>,
+    ) -> PyResult<PyErr> {
+        let exception = TypstError::new_err(message.clone());
+        let exception_obj = exception.value(py);
+        
+        // Set our structured data as attributes
+        exception_obj.setattr("message", message)?;
+        exception_obj.setattr("hints", hints)?;
+        exception_obj.setattr("trace", trace)?;
+        
+        Ok(exception)
+    }
+}
 
 mod output_template {
     const INDEXABLE: [&str; 3] = ["{p}", "{0p}", "{n}"];
@@ -72,20 +95,8 @@ fn create_typst_error(
         (Vec::new(), Vec::new())
     };
 
-    // Import the TypstError class from the Python module
-    let typst_module = py.import("typst")?;
-    let typst_error_class = typst_module.getattr("TypstError")?;
-    
-    // Create the arguments for the TypstError constructor
-    let args = (formatted_message,);
-    let kwargs = pyo3::types::PyDict::new(py);
-    kwargs.set_item("hints", hints)?;
-    kwargs.set_item("trace", trace)?;
-    
-    // Create the exception instance
-    let exception = typst_error_class.call(args, Some(&kwargs))?;
-    
-    Ok(PyErr::from_value(exception))
+    // Create the TypstError with structured details
+    TypstError::new_with_details(py, formatted_message, hints, trace)
 }
 
 #[derive(FromPyObject)]
@@ -338,6 +349,7 @@ fn py_query(
 fn _typst(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<Compiler>()?;
+    m.add("TypstError", _py.get_type::<TypstError>())?;
     m.add_function(wrap_pyfunction!(compile, m)?)?;
     m.add_function(wrap_pyfunction!(py_query, m)?)?;
     Ok(())
