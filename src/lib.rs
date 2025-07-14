@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyRuntimeError, PyValueError, PyUserWarning};
 use pyo3::create_exception;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyList, PyString};
+use pyo3::types::{PyBytes, PyList, PyString, PyTuple};
 
 use query::{query as typst_query, QueryCommand, SerializationFormat};
 use std::collections::HashMap;
@@ -16,8 +16,11 @@ mod download;
 mod query;
 mod world;
 
-// Create a custom exception that inherits from RuntimeError
+// Create custom exceptions that inherit from RuntimeError
 create_exception!(typst, TypstError, PyRuntimeError);
+
+// TypstWarning inherits from UserWarning instead of RuntimeError since it's not an error
+create_exception!(typst, TypstWarning, PyUserWarning);
 
 /// Intermediate structure to hold error details without requiring GIL
 #[derive(Debug, Clone)]
@@ -39,6 +42,51 @@ impl TypstErrorDetails {
         exception_obj.setattr("trace", self.trace)?;
         
         Ok(exception)
+    }
+}
+
+/// Intermediate structure to hold warning details without requiring GIL
+#[derive(Debug, Clone)]
+pub struct TypstWarningDetails {
+    pub message: String,
+    pub hints: Vec<String>,
+    pub trace: Vec<String>,
+}
+
+impl TypstWarningDetails {
+    /// Convert to TypstWarning (requires GIL)
+    pub fn into_py_warning(self, py: Python<'_>) -> PyResult<PyErr> {
+        let warning = TypstWarning::new_err(self.message.clone());
+        let warning_obj = warning.value(py);
+        
+        // Set our structured data as attributes
+        warning_obj.setattr("message", self.message)?;
+        warning_obj.setattr("hints", self.hints)?;
+        warning_obj.setattr("trace", self.trace)?;
+        
+        Ok(warning)
+    }
+}
+
+/// Result of compilation that may include warnings
+#[derive(Debug, Clone)]
+pub struct CompilationResult {
+    pub data: Vec<Vec<u8>>,
+    pub warnings: Vec<TypstWarningDetails>,
+}
+
+impl TypstWarningDetails {
+    /// Convert to TypstWarning (requires GIL)
+    pub fn into_py_warning(self, py: Python<'_>) -> PyResult<PyErr> {
+        let warning = TypstWarning::new_err(self.message.clone());
+        let warning_obj = warning.value(py);
+        
+        // Set our structured data as attributes
+        warning_obj.setattr("message", self.message)?;
+        warning_obj.setattr("hints", self.hints)?;
+        warning_obj.setattr("trace", self.trace)?;
+        
+        Ok(warning)
     }
 }
 
@@ -105,6 +153,32 @@ fn create_typst_error_details(
     }
 }
 
+/// Create structured warning details from diagnostics
+fn create_typst_warning_details_from_diagnostics(
+    world: &SystemWorld,
+    warnings: &[SourceDiagnostic],
+) -> Vec<TypstWarningDetails> {
+    warnings.iter().map(|warning| {
+        // Format just this warning
+        let formatted_message = crate::compiler::format_diagnostics(world, &[], &[warning.clone()])
+            .unwrap_or_else(|_| warning.message.to_string());
+
+        // Extract hints
+        let hints = warning.hints.iter().map(|h| h.to_string()).collect::<Vec<_>>();
+        
+        // Extract trace information
+        let trace = warning.trace.iter().map(|point| {
+            format!("at {}", point.v)
+        }).collect::<Vec<_>>();
+
+        TypstWarningDetails {
+            message: formatted_message,
+            hints,
+            trace,
+        }
+    }).collect()
+}
+
 #[derive(FromPyObject)]
 pub enum Input {
     Path(PathBuf),
@@ -125,7 +199,27 @@ impl Compiler {
         pdf_standards: &[typst_pdf::PdfStandard],
     ) -> Result<Vec<Vec<u8>>, TypstErrorDetails> {
         match self.world.compile_with_diagnostics(format, ppi, pdf_standards) {
-            Ok(buffer) => Ok(buffer),
+            Ok((buffer, _warnings)) => Ok(buffer), // Ignore warnings for backward compatibility
+            Err((errors, warnings)) => {
+                Err(create_typst_error_details(&self.world, &errors, &warnings))
+            }
+        }
+    }
+
+    fn compile_with_warnings(
+        &mut self,
+        format: Option<&str>,
+        ppi: Option<f32>,
+        pdf_standards: &[typst_pdf::PdfStandard],
+    ) -> Result<CompilationResult, TypstErrorDetails> {
+        match self.world.compile_with_diagnostics(format, ppi, pdf_standards) {
+            Ok((buffer, warnings)) => {
+                let warning_details = create_typst_warning_details_from_diagnostics(&self.world, &warnings);
+                Ok(CompilationResult {
+                    data: buffer,
+                    warnings: warning_details,
+                })
+            },
             Err((errors, warnings)) => {
                 Err(create_typst_error_details(&self.world, &errors, &warnings))
             }
@@ -274,6 +368,67 @@ impl Compiler {
         }
     }
 
+    /// Compile a typst file and return both result and warnings
+    #[pyo3(name = "compile_with_warnings", signature = (output = None, format = None, ppi = None, pdf_standards = Vec::new()))]
+    fn py_compile_with_warnings(
+        &mut self,
+        py: Python<'_>,
+        output: Option<PathBuf>,
+        format: Option<&str>,
+        ppi: Option<f32>,
+        #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
+    ) -> PyResult<PyObject> {
+        let result = py.allow_threads(|| self.compile_with_warnings(format, ppi, &pdf_standards))
+            .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
+
+        // Convert warnings to Python objects
+        let warnings_list = PyList::empty(py);
+        for warning_detail in &result.warnings {
+            let warning_obj = warning_detail.clone().into_py_warning(py)?;
+            warnings_list.append(warning_obj.value(py))?;
+        }
+
+        if let Some(output) = output {
+            let can_handle_multiple =
+                output_template::has_indexable_template(output.to_str().unwrap());
+            if !can_handle_multiple && result.data.len() > 1 {
+                return Err(PyRuntimeError::new_err(
+                    "output path does not support multiple pages".to_string(),
+                ));
+            }
+            if !can_handle_multiple && result.data.len() == 1 {
+                // Write a single buffer to the output file
+                std::fs::write(output, &result.data[0])?;
+            } else {
+                // Write each buffer to a separate file
+                for (i, buffer) in result.data.iter().enumerate() {
+                    let output =
+                        output_template::format(output.to_str().unwrap(), i + 1, result.data.len());
+                    std::fs::write(output, buffer)?;
+                }
+            }
+            
+            // Return (None, warnings) tuple
+            let tuple = (py.None(), warnings_list);
+            Ok(tuple.into_py(py))
+        } else {
+            let compiled_data = if result.data.len() == 1 {
+                // Return a single buffer as a single byte string
+                PyBytes::new(py, &result.data[0]).into()
+            } else {
+                let list = PyList::empty(py);
+                for buffer in result.data {
+                    list.append(PyBytes::new(py, &buffer))?;
+                }
+                list.into()
+            };
+            
+            // Return (data, warnings) tuple
+            let tuple = (compiled_data, warnings_list);
+            Ok(tuple.into_py(py))
+        }
+    }
+
     /// Query a typst document
     #[pyo3(name = "query", signature = (selector, field = None, one = false, format = None))]
     fn py_query(
@@ -357,6 +512,7 @@ fn _typst(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<Compiler>()?;
     m.add("TypstError", _py.get_type::<TypstError>())?;
+    m.add("TypstWarning", _py.get_type::<TypstWarning>())?;
     m.add_function(wrap_pyfunction!(compile, m)?)?;
     m.add_function(wrap_pyfunction!(py_query, m)?)?;
     Ok(())

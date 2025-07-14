@@ -55,7 +55,7 @@ impl SystemWorld {
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> Result<Vec<Vec<u8>>, (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
+    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
         let Warned { output, warnings } = typst::compile(self);
 
         match output {
@@ -82,7 +82,7 @@ impl SystemWorld {
                     _fmt => return Err((vec![], vec![])), // Return empty diagnostics for unknown format
                 };
                 
-                result.map_err(|_| (vec![], vec![]))
+                result.map(|data| (data, warnings.to_vec())).map_err(|_| (vec![], vec![]))
             }
             Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
         }

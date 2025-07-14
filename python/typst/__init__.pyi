@@ -1,5 +1,5 @@
 import pathlib
-from typing import List, Optional, TypeVar, overload, Dict, Union, Literal
+from typing import List, Optional, TypeVar, overload, Dict, Union, Literal, Tuple
 
 Input = TypeVar("Input", str, pathlib.Path, bytes)
 OutputFormat = Literal["pdf", "svg", "png", "html"]
@@ -15,6 +15,24 @@ class TypstError(RuntimeError):
         message (str): The main error message
         hints (list[str]): List of helpful hints for resolving the error
         trace (list[str]): Stack trace information showing error location context
+    """
+    message: str
+    hints: List[str]
+    trace: List[str]
+    
+    def __init__(self, message: str, hints: Optional[List[str]] = None, trace: Optional[List[str]] = None) -> None: ...
+
+
+class TypstWarning(UserWarning):
+    """A structured warning raised during Typst compilation.
+    
+    This warning provides structured access to Typst warning diagnostics including
+    warning messages, hints, and stack traces.
+    
+    Attributes:
+        message (str): The main warning message
+        hints (list[str]): List of helpful hints related to the warning
+        trace (list[str]): Stack trace information showing warning location context
     """
     message: str
     hints: List[str]
@@ -57,6 +75,25 @@ class Compiler:
             ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
         Returns:
             Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
+        """
+
+    def compile_with_warnings(
+        self,
+        output: Optional[Input] = None,
+        format: Optional[OutputFormat] = None,
+        ppi: Optional[float] = None,
+    ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
+        """Compile a Typst project and return both result and warnings.
+        Args:
+            output (Optional[PathLike], optional): Path to save the compiled file.
+            Allowed extensions are `.pdf`, `.svg` and `.png`
+            format (Optional[str]): Output format.
+            Allowed values are `pdf`, `svg` and `png`.
+            ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
+        Returns:
+            Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]: Return a tuple of (compiled_data, warnings).
+            The first element is the compiled file as `bytes` if output is `None`, otherwise `None`.
+            The second element is a list of structured warnings that occurred during compilation.
         """
 
     def query(
