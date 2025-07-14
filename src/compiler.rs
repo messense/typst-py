@@ -15,37 +15,42 @@ type CodespanResult<T> = Result<T, CodespanError>;
 type CodespanError = codespan_reporting::files::Error;
 
 impl SystemWorld {
-    pub fn compile(
+    /// Compile and return structured diagnostics for error handling
+    pub fn compile_with_diagnostics(
         &mut self,
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> StrResult<Vec<Vec<u8>>> {
+    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
         let Warned { output, warnings } = typst::compile(self);
 
         match output {
             // Export the PDF / PNG.
             Ok(document) => {
                 // Assert format is "pdf" or "png" or "svg"
-                match format.unwrap_or("pdf").to_ascii_lowercase().as_str() {
-                    "pdf" => Ok(vec![export_pdf(
+                let result = match format.unwrap_or("pdf").to_ascii_lowercase().as_str() {
+                    "pdf" => export_pdf(
                         &document,
                         self,
-                        typst_pdf::PdfStandards::new(pdf_standards)?,
-                    )?]),
-                    "png" => Ok(export_image(&document, ImageExportFormat::Png, ppi)?),
-                    "svg" => Ok(export_image(&document, ImageExportFormat::Svg, ppi)?),
+                        typst_pdf::PdfStandards::new(pdf_standards).map_err(|_e| {
+                            (vec![], vec![])
+                        })?,
+                    ).map(|pdf| vec![pdf]),
+                    "png" => export_image(&document, ImageExportFormat::Png, ppi),
+                    "svg" => export_image(&document, ImageExportFormat::Svg, ppi),
                     "html" => {
                         let Warned {
                             output,
                             warnings: _,
                         } = typst::compile::<HtmlDocument>(self);
-                        Ok(vec![export_html(&output.unwrap(), self)?])
+                        export_html(&output.unwrap(), self).map(|html| vec![html])
                     }
-                    fmt => Err(eco_format!("unknown format: {fmt}")),
-                }
+                    _fmt => return Err((vec![], vec![])), // Return empty diagnostics for unknown format
+                };
+                
+                result.map(|data| (data, warnings.to_vec())).map_err(|_| (vec![], vec![]))
             }
-            Err(errors) => Err(format_diagnostics(self, &errors, &warnings).unwrap().into()),
+            Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
         }
     }
 }
