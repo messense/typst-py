@@ -200,7 +200,7 @@ impl Compiler {
         output: Option<PathBuf>,
         format: Option<&str>,
         ppi: Option<f32>,
-        #[pyo3(from_py_with = "extract_pdf_standards")] pdf_standards: Vec<typst_pdf::PdfStandard>,
+        #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     ) -> PyResult<PyObject> {
         if let Some(output) = output {
             // if format is None and output with postfix ".pdf", ".png" and ".svg" is
@@ -294,7 +294,7 @@ fn compile(
     format: Option<&str>,
     ppi: Option<f32>,
     sys_inputs: HashMap<String, String>,
-    #[pyo3(from_py_with = "extract_pdf_standards")] pdf_standards: Vec<typst_pdf::PdfStandard>,
+    #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
 ) -> PyResult<PyObject> {
     let mut compiler = Compiler::new(input, root, font_paths, ignore_system_fonts, sys_inputs)?;
     compiler.py_compile(py, output, format, ppi, pdf_standards)

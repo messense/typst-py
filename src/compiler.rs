@@ -66,7 +66,7 @@ impl SystemWorld {
                     "pdf" => export_pdf(
                         &document,
                         self,
-                        typst_pdf::PdfStandards::new(pdf_standards).map_err(|e| {
+                        typst_pdf::PdfStandards::new(pdf_standards).map_err(|_e| {
                             (vec![], vec![])
                         })?,
                     ).map(|pdf| vec![pdf]),
