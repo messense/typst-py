@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use pyo3::exceptions::{PyRuntimeError, PyValueError, PyUserWarning};
 use pyo3::create_exception;
 use pyo3::prelude::*;
-use pyo3::{IntoPy, PyObject};
-use pyo3::types::{PyBytes, PyList, PyString};
+use pyo3::types::{PyBytes, PyList, PyString, PyTuple};
 
 use query::{query as typst_query, QueryCommand, SerializationFormat};
 use std::collections::HashMap;
@@ -385,7 +384,7 @@ impl Compiler {
             }
             
             // Return (None, warnings) tuple
-            Ok((py.None(), warnings_list).into_py(py))
+            Ok(PyTuple::new(py, [py.None(), warnings_list.into()])?.into())
         } else {
             let compiled_data: PyObject = if result.data.len() == 1 {
                 // Return a single buffer as a single byte string
@@ -399,7 +398,7 @@ impl Compiler {
             };
             
             // Return (data, warnings) tuple
-            Ok((compiled_data, warnings_list).into_py(py))
+            Ok(PyTuple::new(py, [compiled_data, warnings_list.into()])?.into())
         }
     }
 
@@ -481,12 +480,12 @@ fn py_query(
 }
 
 /// Python binding to typst
-#[pymodule(gil_used = false)]
-fn _typst(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+#[pymodule]
+fn _typst(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<Compiler>()?;
-    m.add("TypstError", _py.get_type::<TypstError>())?;
-    m.add("TypstWarning", _py.get_type::<TypstWarning>())?;
+    m.add("TypstError", py.get_type::<TypstError>())?;
+    m.add("TypstWarning", py.get_type::<TypstWarning>())?;
     m.add_function(wrap_pyfunction!(compile, m)?)?;
     m.add_function(wrap_pyfunction!(py_query, m)?)?;
     Ok(())
