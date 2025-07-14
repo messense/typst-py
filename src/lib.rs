@@ -19,20 +19,24 @@ mod world;
 // Create a custom exception that inherits from RuntimeError
 create_exception!(typst, TypstError, PyRuntimeError);
 
-impl TypstError {
-    pub fn new_with_details(
-        py: Python<'_>,
-        message: String,
-        hints: Vec<String>,
-        trace: Vec<String>,
-    ) -> PyResult<PyErr> {
-        let exception = TypstError::new_err(message.clone());
+/// Intermediate structure to hold error details without requiring GIL
+#[derive(Debug, Clone)]
+pub struct TypstErrorDetails {
+    pub message: String,
+    pub hints: Vec<String>,
+    pub trace: Vec<String>,
+}
+
+impl TypstErrorDetails {
+    /// Convert to TypstError (requires GIL)
+    pub fn into_py_err(self, py: Python<'_>) -> PyResult<PyErr> {
+        let exception = TypstError::new_err(self.message.clone());
         let exception_obj = exception.value(py);
         
         // Set our structured data as attributes
-        exception_obj.setattr("message", message)?;
-        exception_obj.setattr("hints", hints)?;
-        exception_obj.setattr("trace", trace)?;
+        exception_obj.setattr("message", self.message)?;
+        exception_obj.setattr("hints", self.hints)?;
+        exception_obj.setattr("trace", self.trace)?;
         
         Ok(exception)
     }
@@ -67,13 +71,12 @@ mod output_template {
     }
 }
 
-/// Create a structured TypstError from diagnostics
-fn create_typst_error(
-    py: Python<'_>,
+/// Create structured error details from diagnostics
+fn create_typst_error_details(
     world: &SystemWorld,
     errors: &[SourceDiagnostic],
     warnings: &[SourceDiagnostic],
-) -> PyResult<PyErr> {
+) -> TypstErrorDetails {
     // Get the main error message by formatting all diagnostics
     let formatted_message = crate::compiler::format_diagnostics(world, errors, warnings)
         .unwrap_or_else(|_| "Failed to format diagnostic message".to_string());
@@ -95,8 +98,11 @@ fn create_typst_error(
         (Vec::new(), Vec::new())
     };
 
-    // Create the TypstError with structured details
-    TypstError::new_with_details(py, formatted_message, hints, trace)
+    TypstErrorDetails {
+        message: formatted_message,
+        hints,
+        trace,
+    }
 }
 
 #[derive(FromPyObject)]
@@ -114,22 +120,20 @@ pub struct Compiler {
 impl Compiler {
     fn compile(
         &mut self,
-        _py: Python<'_>,
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> PyResult<Vec<Vec<u8>>> {
+    ) -> Result<Vec<Vec<u8>>, TypstErrorDetails> {
         match self.world.compile_with_diagnostics(format, ppi, pdf_standards) {
             Ok(buffer) => Ok(buffer),
             Err((errors, warnings)) => {
-                Err(create_typst_error(_py, &self.world, &errors, &warnings)?)
+                Err(create_typst_error_details(&self.world, &errors, &warnings))
             }
         }
     }
 
     fn query(
         &mut self,
-        _py: Python<'_>,
         selector: &str,
         field: Option<&str>,
         one: bool,
@@ -231,7 +235,9 @@ impl Compiler {
                     }
                 }
             };
-            let buffers = self.compile(py, format, ppi, &pdf_standards)?;
+            
+            let buffers = py.allow_threads(|| self.compile(format, ppi, &pdf_standards))
+                .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
 
             let can_handle_multiple =
                 output_template::has_indexable_template(output.to_str().unwrap());
@@ -253,7 +259,8 @@ impl Compiler {
             }
             Ok(py.None())
         } else {
-            let buffers = self.compile(py, format, ppi, &pdf_standards)?;
+            let buffers = py.allow_threads(|| self.compile(format, ppi, &pdf_standards))
+                .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
             if buffers.len() == 1 {
                 // Return a single buffer as a single byte string
                 Ok(PyBytes::new(py, &buffers[0]).into())
@@ -277,7 +284,7 @@ impl Compiler {
         one: bool,
         format: Option<&str>,
     ) -> PyResult<PyObject> {
-        self.query(py, selector, field, one, format)
+        py.allow_threads(|| self.query(selector, field, one, format))
             .map(|s| PyString::new(py, &s).into())
     }
 }
