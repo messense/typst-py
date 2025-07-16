@@ -95,17 +95,14 @@ mod output_template {
 }
 
 /// Create structured error details from diagnostics
-fn create_typst_diagnostic_details(
-    world: &SystemWorld,
+fn create_typst_error_details_from_diagnostics(
     errors: &[SourceDiagnostic],
-    warnings: &[SourceDiagnostic],
 ) -> TypstDiagnosticDetails {
-    // Get the main error message by formatting all diagnostics
-    let formatted_message = crate::compiler::format_diagnostics(world, errors, warnings)
-        .unwrap_or_else(|_| "Failed to format diagnostic message".to_string());
-
     // Extract structured information from the first error (most relevant)
     let primary_error = errors.first();
+    let message = primary_error
+        .map(|err| err.message.to_string())
+        .unwrap_or_default();
 
     let (hints, trace) = if let Some(error) = primary_error {
         // Extract hints
@@ -128,7 +125,7 @@ fn create_typst_diagnostic_details(
     };
 
     TypstDiagnosticDetails {
-        message: formatted_message,
+        message,
         hints,
         trace,
     }
@@ -136,16 +133,12 @@ fn create_typst_diagnostic_details(
 
 /// Create structured warning details from diagnostics
 fn create_typst_warning_details_from_diagnostics(
-    world: &SystemWorld,
     warnings: &[SourceDiagnostic],
 ) -> Vec<TypstDiagnosticDetails> {
     warnings
         .iter()
         .map(|warning| {
-            // Format just this warning
-            let formatted_message =
-                crate::compiler::format_diagnostics(world, &[], &[warning.clone()])
-                    .unwrap_or_else(|_| warning.message.to_string());
+            let message = warning.message.to_string();
 
             // Extract hints
             let hints = warning
@@ -162,7 +155,7 @@ fn create_typst_warning_details_from_diagnostics(
                 .collect::<Vec<_>>();
 
             TypstDiagnosticDetails {
-                message: formatted_message,
+                message,
                 hints,
                 trace,
             }
@@ -194,11 +187,7 @@ impl Compiler {
             .compile_with_diagnostics(format, ppi, pdf_standards)
         {
             Ok((buffer, _warnings)) => Ok(buffer), // Ignore warnings for backward compatibility
-            Err((errors, warnings)) => Err(create_typst_diagnostic_details(
-                &self.world,
-                &errors,
-                &warnings,
-            )),
+            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&errors)),
         }
     }
 
@@ -213,18 +202,13 @@ impl Compiler {
             .compile_with_diagnostics(format, ppi, pdf_standards)
         {
             Ok((buffer, warnings)) => {
-                let warning_details =
-                    create_typst_warning_details_from_diagnostics(&self.world, &warnings);
+                let warning_details = create_typst_warning_details_from_diagnostics(&warnings);
                 Ok(CompilationResult {
                     data: buffer,
                     warnings: warning_details,
                 })
             }
-            Err((errors, warnings)) => Err(create_typst_diagnostic_details(
-                &self.world,
-                &errors,
-                &warnings,
-            )),
+            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&errors)),
         }
     }
 
