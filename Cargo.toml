@@ -1,7 +1,7 @@
 [package]
 name = "typst-py"
-version = "0.13.3"
-edition = "2021"
+version = "0.13.4"
+edition = "2024"
 description = "Python binding to typst"
 license = "Apache-2.0"
 repository = "https://github.com/messense/typst-py"
