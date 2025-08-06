@@ -273,10 +273,23 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df6916408a724339aa77b18214233355f3eb04c42eb895e5f8909215bd8a7a91"
 dependencies = [
- "comemo-macros",
+ "comemo-macros 0.4.0",
  "once_cell",
  "parking_lot",
  "siphasher",
+]
+
+[[package]]
+name = "comemo"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "649d7b2d867b569729c03c0f6968db10bc95921182a1f2b2012b1b549492f39d"
+dependencies = [
+ "comemo-macros 0.5.0",
+ "parking_lot",
+ "rustc-hash",
+ "siphasher",
+ "slab",
 ]
 
 [[package]]
@@ -284,6 +297,17 @@ name = "comemo-macros"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8936e42f9b4f5bdfaf23700609ac1f11cb03ad4c1ec128a4ee4fd0903e228db"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "comemo-macros"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51c87fc7e85487493ddedae1a3a34b897c77ad8825375b79265a8a162c28d535"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1809,6 +1833,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustc-hash"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
+
+[[package]]
 name = "rustix"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1978,6 +2008,12 @@ name = "siphasher"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
+
+[[package]]
+name = "slab"
+version = "0.4.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04dc19736151f35336d325007ac991178d504a119863a2fcb3758cdb5e52c50d"
 
 [[package]]
 name = "slotmap"
@@ -2394,7 +2430,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "140458bc8c72b014266f8ea5fad57165c8159845105eea8949c8954b2a8f49f4"
 dependencies = [
- "comemo",
+ "comemo 0.4.0",
  "ecow",
  "typst-eval",
  "typst-html",
@@ -2419,7 +2455,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "850733c95becdb1b0153fd50e979b06d1a3d42f2411f2a0206b3a793501205ac"
 dependencies = [
- "comemo",
+ "comemo 0.4.0",
  "ecow",
  "if_chain",
  "indexmap",
@@ -2439,7 +2475,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "654de5a88b9104f9b19723166eb16b8aec6df72a060d91736b81dc72e905e7cc"
 dependencies = [
- "comemo",
+ "comemo 0.4.0",
  "ecow",
  "typst-library",
  "typst-macros",
@@ -2482,7 +2518,7 @@ checksum = "dc7f7129c44423e54e9943c8a87403a82e8a5a1bdfd3ef08c0aae1b66deec696"
 dependencies = [
  "az",
  "bumpalo",
- "comemo",
+ "comemo 0.4.0",
  "ecow",
  "hypher",
  "icu_properties 1.5.1",
@@ -2518,7 +2554,7 @@ dependencies = [
  "chinese-number",
  "ciborium",
  "codex",
- "comemo",
+ "comemo 0.4.0",
  "csv",
  "ecow",
  "flate2",
@@ -2588,7 +2624,7 @@ dependencies = [
  "arrayvec",
  "base64",
  "bytemuck",
- "comemo",
+ "comemo 0.4.0",
  "ecow",
  "image",
  "indexmap",
@@ -2613,7 +2649,7 @@ version = "0.13.4"
 dependencies = [
  "chrono",
  "codespan-reporting",
- "comemo",
+ "comemo 0.5.0",
  "ecow",
  "pathdiff",
  "pyo3",
@@ -2637,7 +2673,7 @@ checksum = "7bc724c3303b9864c01f25292d82c3aa8f0492512bd890836f1fb7242fa5b8af"
 dependencies = [
  "arrayvec",
  "bumpalo",
- "comemo",
+ "comemo 0.4.0",
  "ecow",
  "regex",
  "typst-library",
@@ -2654,7 +2690,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e76277edcc37998910fa4a2e403056cdadd25e0f85dfbef1e98ac0377d9f04e"
 dependencies = [
  "bytemuck",
- "comemo",
+ "comemo 0.4.0",
  "image",
  "pixglyph",
  "resvg",
@@ -2672,7 +2708,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "674c8e5cb94015c9f870c48bace6b64eb706075766643f3b1f67606c6b03feae"
 dependencies = [
  "base64",
- "comemo",
+ "comemo 0.4.0",
  "ecow",
  "flate2",
  "image",
