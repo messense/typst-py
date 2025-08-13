@@ -87,6 +87,16 @@ impl SystemWorld {
         SystemWorldBuilder::new(root, input)
     }
 
+    /// Reset the compilation state in preparation of a new compilation.
+    pub fn reset(&mut self) {
+        let mut slots = self.slots.lock().unwrap();
+        for slot in slots.values_mut() {
+            slot.reset();
+        }
+        // Reset the datetime for each compilation
+        self.now.take();
+    }
+
     /// Access the canonical slot for the given file id.
     fn slot<F, T>(&self, id: FileId, f: F) -> T
     where
@@ -221,6 +231,18 @@ impl FileSlot {
         }
     }
 
+    /// Whether the file was accessed in the ongoing compilation.
+    fn accessed(&self) -> bool {
+        self.source.accessed() || self.file.accessed()
+    }
+
+    /// Marks the file as not yet accessed in preparation of the next
+    /// compilation.
+    fn reset(&mut self) {
+        self.source.reset();
+        self.file.reset();
+    }
+
     fn source(
         &mut self,
         project_root: &Path,
@@ -284,6 +306,17 @@ impl<T: Clone> SlotCell<T> {
             fingerprint: 0,
             accessed: false,
         }
+    }
+
+    /// Whether the cell was accessed in the ongoing compilation.
+    fn accessed(&self) -> bool {
+        self.accessed
+    }
+
+    /// Marks the cell as not yet accessed in preparation of the next
+    /// compilation.
+    fn reset(&mut self) {
+        self.accessed = false;
     }
 
     fn init(&mut self, data: T) {
