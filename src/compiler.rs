@@ -23,6 +23,9 @@ impl SystemWorld {
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
     ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
+        // Reset the world state before compilation to ensure file changes are detected
+        self.reset();
+        
         let Warned { output, warnings } = typst::compile(self);
         
         // Evict comemo cache to limit memory usage after compilation
