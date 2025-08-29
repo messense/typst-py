@@ -17,7 +17,7 @@ chrono = { version = "0.4.41", default-features = false, features = [
     "std",
 ] }
 codespan-reporting = "0.12"
-comemo = "0.4.0"
+comemo = "0.5.0"
 ecow = "0.2"
 pathdiff = "0.2"
 pyo3 = { version = "0.25.1", features = ["abi3-py38", "generate-import-lib"] }
