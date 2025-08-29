@@ -91,12 +91,7 @@ impl SystemWorld {
     pub fn reset(&mut self) {
         let mut slots = self.slots.lock().unwrap();
         for slot in slots.values_mut() {
-            // Don't reset slots for fake file IDs (bytes input) that have pre-initialized data
-            // Check if this is the special "<bytes>" virtual path used for bytes input
-            let vpath_debug = format!("{:?}", slot.id.vpath());
-            if vpath_debug != "/<bytes>" {
-                slot.reset();
-            }
+            slot.reset();
         }
         // Reset the datetime for each compilation
         self.now.take();

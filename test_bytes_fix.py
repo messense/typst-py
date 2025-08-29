@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Test to verify bytes input compilation works correctly.
-This test covers the regression reported in issue #116.
+Test to verify both bytes and file compilation work correctly.
+This test covers the regression reported in issue #116 and ensures
+file change tracking still works as intended for issue #114.
 """
 
 import sys
