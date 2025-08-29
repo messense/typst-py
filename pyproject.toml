@@ -11,6 +11,12 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+]
 
 [tool.maturin]
 module-name = "typst._typst"
