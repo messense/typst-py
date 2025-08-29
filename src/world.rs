@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use chrono::{DateTime, Datelike, Local};
 use typst::diag::{FileError, FileResult, StrResult};
@@ -10,13 +10,13 @@ use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, LibraryBuilder, World};
 use typst_kit::{
-    fonts::{FontSearcher, FontSlot},
+    fonts::{FontSearcher, Fonts},
     package::PackageStorage,
 };
 
 use std::collections::HashMap;
 
-use crate::{download::SlientDownload, Input};
+use crate::{Input, download::SlientDownload};
 
 /// A world that provides access to the operating system.
 pub struct SystemWorld {
@@ -31,7 +31,7 @@ pub struct SystemWorld {
     /// Metadata about discovered fonts.
     book: LazyHash<FontBook>,
     /// Locations of and storage for lazily loaded fonts.
-    fonts: Vec<FontSlot>,
+    fonts: Arc<typst_kit::fonts::Fonts>,
     /// Maps file ids to source files and buffers.
     slots: Mutex<HashMap<FileId, FileSlot>>,
     /// Holds information about where packages are stored.
@@ -63,7 +63,7 @@ impl World for SystemWorld {
     }
 
     fn font(&self, index: usize) -> Option<Font> {
-        self.fonts[index].get()
+        self.fonts.fonts[index].get()
     }
 
     fn today(&self, offset: Option<i64>) -> Option<Datetime> {
@@ -127,8 +127,7 @@ impl SystemWorld {
 pub struct SystemWorldBuilder {
     root: PathBuf,
     input: Input,
-    font_paths: Vec<PathBuf>,
-    ignore_system_fonts: bool,
+    fonts: Option<Arc<Fonts>>,
     inputs: Dict,
 }
 
@@ -137,19 +136,13 @@ impl SystemWorldBuilder {
         Self {
             root,
             input,
-            font_paths: Vec::new(),
-            ignore_system_fonts: false,
+            fonts: None,
             inputs: Dict::default(),
         }
     }
 
-    pub fn font_paths(mut self, font_paths: Vec<PathBuf>) -> Self {
-        self.font_paths = font_paths;
-        self
-    }
-
-    pub fn ignore_system_fonts(mut self, ignore: bool) -> Self {
-        self.ignore_system_fonts = ignore;
+    pub fn fonts(mut self, fonts: Option<Arc<Fonts>>) -> Self {
+        self.fonts = fonts;
         self
     }
 
@@ -159,9 +152,10 @@ impl SystemWorldBuilder {
     }
 
     pub fn build(self) -> StrResult<SystemWorld> {
-        let fonts = FontSearcher::new()
-            .include_system_fonts(!self.ignore_system_fonts)
-            .search_with(&self.font_paths);
+        let fonts = match self.fonts {
+            Some(fonts) => fonts,
+            None => Arc::new(FontSearcher::new().include_system_fonts(true).search()),
+        };
 
         let mut slots = HashMap::new();
         let main = match self.input {
@@ -199,8 +193,8 @@ impl SystemWorldBuilder {
                     .with_inputs(self.inputs)
                     .build(),
             ),
-            book: LazyHash::new(fonts.book),
-            fonts: fonts.fonts,
+            book: LazyHash::new(fonts.book.clone()),
+            fonts,
             slots: Mutex::new(slots),
             package_storage: PackageStorage::new(None, None, crate::download::downloader()),
             now: OnceLock::new(),
@@ -229,11 +223,6 @@ impl FileSlot {
             file: SlotCell::new(),
             source: SlotCell::new(),
         }
-    }
-
-    /// Whether the file was accessed in the ongoing compilation.
-    fn accessed(&self) -> bool {
-        self.source.accessed() || self.file.accessed()
     }
 
     /// Marks the file as not yet accessed in preparation of the next
@@ -306,11 +295,6 @@ impl<T: Clone> SlotCell<T> {
             fingerprint: 0,
             accessed: false,
         }
-    }
-
-    /// Whether the cell was accessed in the ongoing compilation.
-    fn accessed(&self) -> bool {
-        self.accessed
     }
 
     /// Marks the cell as not yet accessed in preparation of the next

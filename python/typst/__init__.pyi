@@ -41,12 +41,21 @@ class TypstWarning(UserWarning):
     def __init__(self, message: str, hints: Optional[List[str]] = None, trace: Optional[List[str]] = None) -> None: ...
 
 
+class Fonts:
+    def __init__(
+        self,
+        include_system_fonts: bool = True,
+        include_embedded_fonts: bool = True,
+        font_paths: List[Input] = []
+    ) -> None: ...
+
+
 class Compiler:
     def __init__(
         self,
         input: Input,
         root: Optional[Input] = None,
-        font_paths: List[Input] = [],
+        font_paths: Union[Fonts, List[Input]] = [],
         ignore_system_fonts: bool = False,
         sys_inputs: Dict[str, str] = {},
         pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
@@ -55,7 +64,7 @@ class Compiler:
         Args:
             input: .typ file bytes or path to project's main .typ file.
             root (Optional[PathLike], optional): Root path for the Typst project.
-            font_paths (List[PathLike]): Folders with fonts.
+            font_paths (Union[Fonts, List[Input]]): Folders with fonts.
             ignore_system_fonts (bool): Ignore system fonts.
             sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
         """
@@ -118,7 +127,7 @@ def compile(
     input: Input,
     output: Input,
     root: Optional[Input] = None,
-    font_paths: List[Input] = [],
+    font_paths: Union[Fonts, List[Input]] = [],
     ignore_system_fonts: bool = False,
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
@@ -130,7 +139,7 @@ def compile(
     input: Input,
     output: None = None,
     root: Optional[Input] = None,
-    font_paths: List[Input] = [],
+    font_paths: Union[Fonts, List[Input]] = [],
     ignore_system_fonts: bool = False,
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
@@ -141,7 +150,7 @@ def compile(
     input: Input,
     output: Optional[Input] = None,
     root: Optional[Input] = None,
-    font_paths: List[Input] = [],
+    font_paths: Union[Fonts, List[Input]] = [],
     ignore_system_fonts: bool = False,
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
@@ -154,7 +163,7 @@ def compile(
         output (Optional[PathLike], optional): Path to save the compiled file.
         Allowed extensions are `.pdf`, `.svg` and `.png`
         root (Optional[PathLike], optional): Root path for the Typst project.
-        font_paths (List[PathLike]): Folders with fonts.
+        font_paths (Union[Fonts, List[Input]]): Folders with fonts.
         ignore_system_fonts (bool): Ignore system fonts
         format (Optional[str]): Output format.
         Allowed values are `pdf`, `svg` and `png`.
@@ -169,7 +178,7 @@ def compile_with_warnings(
     input: Input,
     output: Input,
     root: Optional[Input] = None,
-    font_paths: List[Input] = [],
+    font_paths: Union[Fonts, List[Input]] = [],
     ignore_system_fonts: bool = False,
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
@@ -181,7 +190,7 @@ def compile_with_warnings(
     input: Input,
     output: None = None,
     root: Optional[Input] = None,
-    font_paths: List[Input] = [],
+    font_paths: Union[Fonts, List[Input]] = [],
     ignore_system_fonts: bool = False,
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
@@ -192,7 +201,7 @@ def compile_with_warnings(
     input: Input,
     output: Optional[Input] = None,
     root: Optional[Input] = None,
-    font_paths: List[Input] = [],
+    font_paths: Union[Fonts, List[Input]] = [],
     ignore_system_fonts: bool = False,
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
@@ -205,7 +214,7 @@ def compile_with_warnings(
         output (Optional[PathLike], optional): Path to save the compiled file.
         Allowed extensions are `.pdf`, `.svg` and `.png`
         root (Optional[PathLike], optional): Root path for the Typst project.
-        font_paths (List[PathLike]): Folders with fonts.
+        font_paths (Union[Fonts, List[Input]]): Folders with fonts.
         ignore_system_fonts (bool): Ignore system fonts
         format (Optional[str]): Output format.
         Allowed values are `pdf`, `svg` and `png`.
@@ -222,7 +231,7 @@ def query(
     one: bool = False,
     format: Optional[Literal["json", "yaml"]] = None,
     root: Optional[Input] = None,
-    font_paths: List[Input] = [],
+    font_paths: Union[Fonts, List[Input]] = [],
     ignore_system_fonts: bool = False,
     sys_inputs: Dict[str, str] = {},
 ) -> str:
@@ -234,7 +243,7 @@ def query(
         one (bool, optional): Query only one element.
         format (Optional[str]): Output format, `json` or `yaml`.
         root (Optional[PathLike], optional): Root path for the Typst project.
-        font_paths (List[PathLike]): Folders with fonts.
+        font_paths (Union[Fonts, List[Input]]): Folders with fonts.
         ignore_system_fonts (bool): Ignore system fonts
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
     Returns:
