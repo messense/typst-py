@@ -1,11 +1,11 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use pyo3::create_exception;
 use pyo3::exceptions::{PyRuntimeError, PyUserWarning, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyString, PyTuple};
 
-use query::{query as typst_query, QueryCommand, SerializationFormat};
+use query::{QueryCommand, SerializationFormat, query as typst_query};
 use std::collections::HashMap;
 use typst::diag::SourceDiagnostic;
 use typst::foundations::{Dict, Value};
@@ -169,6 +169,38 @@ pub enum Input {
     Bytes(Vec<u8>),
 }
 
+#[pyclass(module = "typst._typst")]
+#[derive(Clone)]
+pub struct Fonts(Arc<typst_kit::fonts::Fonts>);
+
+#[pymethods]
+impl Fonts {
+    #[new]
+    #[pyo3(signature = (
+        include_system_fonts = true,
+        include_embedded_fonts = true,
+        font_paths = Vec::new(),
+    ))]
+    pub fn new(
+        include_system_fonts: bool,
+        include_embedded_fonts: bool,
+        font_paths: Vec<PathBuf>,
+    ) -> Self {
+        let mut searcher = typst_kit::fonts::FontSearcher::new();
+        searcher
+            .include_system_fonts(include_system_fonts)
+            .include_embedded_fonts(include_embedded_fonts);
+        let fonts = searcher.search_with(&font_paths);
+        Self(Arc::new(fonts))
+    }
+}
+
+#[derive(FromPyObject)]
+pub enum FontsOrPaths {
+    Fonts(Fonts),
+    Paths(Vec<PathBuf>),
+}
+
 /// A typst compiler
 #[pyclass(module = "typst._typst")]
 pub struct Compiler {
@@ -251,14 +283,14 @@ impl Compiler {
     #[pyo3(signature = (
         input,
         root = None,
-        font_paths = Vec::new(),
+        font_paths = FontsOrPaths::Paths(Vec::new()),
         ignore_system_fonts = false,
         sys_inputs = HashMap::new()
     ))]
     fn new(
         input: Input,
         root: Option<PathBuf>,
-        font_paths: Vec<PathBuf>,
+        font_paths: FontsOrPaths,
         ignore_system_fonts: bool,
         sys_inputs: HashMap<String, String>,
     ) -> PyResult<Self> {
@@ -272,6 +304,10 @@ impl Compiler {
         } else {
             PathBuf::new()
         };
+        let fonts = match font_paths {
+            FontsOrPaths::Paths(paths) => Fonts::new(!ignore_system_fonts, true, paths),
+            FontsOrPaths::Fonts(fonts) => fonts,
+        };
 
         // Create the world that serves sources, fonts and files.
         let world = SystemWorld::builder(root, input)
@@ -280,8 +316,7 @@ impl Compiler {
                     .into_iter()
                     .map(|(k, v)| (k.into(), Value::Str(v.into()))),
             ))
-            .font_paths(font_paths)
-            .ignore_system_fonts(ignore_system_fonts)
+            .fonts(Some(fonts.0))
             .build()
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         Ok(Self { world })
@@ -437,7 +472,7 @@ impl Compiler {
     input,
     output = None,
     root = None,
-    font_paths = Vec::new(),
+    font_paths = FontsOrPaths::Paths(Vec::new()),
     ignore_system_fonts = false,
     format = None, ppi = None,
     sys_inputs = HashMap::new(),
@@ -449,7 +484,7 @@ fn compile(
     input: Input,
     output: Option<PathBuf>,
     root: Option<PathBuf>,
-    font_paths: Vec<PathBuf>,
+    font_paths: FontsOrPaths,
     ignore_system_fonts: bool,
     format: Option<&str>,
     ppi: Option<f32>,
@@ -466,7 +501,7 @@ fn compile(
     input,
     output = None,
     root = None,
-    font_paths = Vec::new(),
+    font_paths = FontsOrPaths::Paths(Vec::new()),
     ignore_system_fonts = false,
     format = None, ppi = None,
     sys_inputs = HashMap::new(),
@@ -478,7 +513,7 @@ fn compile_with_warnings(
     input: Input,
     output: Option<PathBuf>,
     root: Option<PathBuf>,
-    font_paths: Vec<PathBuf>,
+    font_paths: FontsOrPaths,
     ignore_system_fonts: bool,
     format: Option<&str>,
     ppi: Option<f32>,
@@ -500,7 +535,7 @@ fn compile_with_warnings(
         one = false,
         format = None,
         root = None,
-        font_paths = Vec::new(),
+        font_paths = FontsOrPaths::Paths(Vec::new()),
         ignore_system_fonts = false,
         sys_inputs = HashMap::new()
     )
@@ -514,7 +549,7 @@ fn py_query(
     one: bool,
     format: Option<&str>,
     root: Option<PathBuf>,
-    font_paths: Vec<PathBuf>,
+    font_paths: FontsOrPaths,
     ignore_system_fonts: bool,
     sys_inputs: HashMap<String, String>,
 ) -> PyResult<PyObject> {
@@ -526,6 +561,7 @@ fn py_query(
 #[pymodule(gil_used = false)]
 fn _typst(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    m.add_class::<Fonts>()?;
     m.add_class::<Compiler>()?;
     m.add("TypstError", py.get_type::<TypstError>())?;
     m.add("TypstWarning", py.get_type::<TypstWarning>())?;
