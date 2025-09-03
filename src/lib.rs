@@ -285,7 +285,8 @@ impl Compiler {
         root = None,
         font_paths = FontsOrPaths::Paths(Vec::new()),
         ignore_system_fonts = false,
-        sys_inputs = HashMap::new()
+        sys_inputs = HashMap::new(),
+        package_path = None,
     ))]
     fn new(
         input: Input,
@@ -293,6 +294,7 @@ impl Compiler {
         font_paths: FontsOrPaths,
         ignore_system_fonts: bool,
         sys_inputs: HashMap<String, String>,
+        package_path: Option<PathBuf>,
     ) -> PyResult<Self> {
         let root = if let Some(root) = root {
             root.canonicalize()?
@@ -317,6 +319,7 @@ impl Compiler {
                     .map(|(k, v)| (k.into(), Value::Str(v.into()))),
             ))
             .fonts(Some(fonts.0))
+            .package_path(package_path)
             .build()
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         Ok(Self { world })
@@ -476,7 +479,8 @@ impl Compiler {
     ignore_system_fonts = false,
     format = None, ppi = None,
     sys_inputs = HashMap::new(),
-    pdf_standards = Vec::new()
+    pdf_standards = Vec::new(),
+    package_path=None,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn compile(
@@ -490,8 +494,16 @@ fn compile(
     ppi: Option<f32>,
     sys_inputs: HashMap<String, String>,
     #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
+    package_path: Option<PathBuf>,
 ) -> PyResult<PyObject> {
-    let mut compiler = Compiler::new(input, root, font_paths, ignore_system_fonts, sys_inputs)?;
+    let mut compiler = Compiler::new(
+        input,
+        root,
+        font_paths,
+        ignore_system_fonts,
+        sys_inputs,
+        package_path,
+    )?;
     compiler.py_compile(py, output, format, ppi, pdf_standards)
 }
 
@@ -505,7 +517,8 @@ fn compile(
     ignore_system_fonts = false,
     format = None, ppi = None,
     sys_inputs = HashMap::new(),
-    pdf_standards = Vec::new()
+    pdf_standards = Vec::new(),
+    package_path=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn compile_with_warnings(
@@ -519,8 +532,16 @@ fn compile_with_warnings(
     ppi: Option<f32>,
     sys_inputs: HashMap<String, String>,
     #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
+    package_path: Option<PathBuf>,
 ) -> PyResult<PyObject> {
-    let mut compiler = Compiler::new(input, root, font_paths, ignore_system_fonts, sys_inputs)?;
+    let mut compiler = Compiler::new(
+        input,
+        root,
+        font_paths,
+        ignore_system_fonts,
+        sys_inputs,
+        package_path,
+    )?;
     compiler.py_compile_with_warnings(py, output, format, ppi, pdf_standards)
 }
 
@@ -537,7 +558,8 @@ fn compile_with_warnings(
         root = None,
         font_paths = FontsOrPaths::Paths(Vec::new()),
         ignore_system_fonts = false,
-        sys_inputs = HashMap::new()
+        sys_inputs = HashMap::new(),
+        package_path=None,
     )
 )]
 #[allow(clippy::too_many_arguments)]
@@ -552,8 +574,16 @@ fn py_query(
     font_paths: FontsOrPaths,
     ignore_system_fonts: bool,
     sys_inputs: HashMap<String, String>,
+    package_path: Option<PathBuf>,
 ) -> PyResult<PyObject> {
-    let mut compiler = Compiler::new(input, root, font_paths, ignore_system_fonts, sys_inputs)?;
+    let mut compiler = Compiler::new(
+        input,
+        root,
+        font_paths,
+        ignore_system_fonts,
+        sys_inputs,
+        package_path,
+    )?;
     compiler.py_query(py, selector, field, one, format)
 }
 
