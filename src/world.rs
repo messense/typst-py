@@ -129,6 +129,7 @@ pub struct SystemWorldBuilder {
     input: Input,
     fonts: Option<Arc<Fonts>>,
     inputs: Dict,
+    package_path: Option<PathBuf>,
 }
 
 impl SystemWorldBuilder {
@@ -138,7 +139,13 @@ impl SystemWorldBuilder {
             input,
             fonts: None,
             inputs: Dict::default(),
+            package_path: None,
         }
+    }
+
+    pub fn package_path(mut self, package_path: Option<PathBuf>) -> Self {
+        self.package_path = package_path;
+        self
     }
 
     pub fn fonts(mut self, fonts: Option<Arc<Fonts>>) -> Self {
@@ -182,7 +189,6 @@ impl SystemWorldBuilder {
                 file_id
             }
         };
-
         let world = SystemWorld {
             workdir: std::env::current_dir().ok(),
             root: self.root,
@@ -196,7 +202,11 @@ impl SystemWorldBuilder {
             book: LazyHash::new(fonts.book.clone()),
             fonts,
             slots: Mutex::new(slots),
-            package_storage: PackageStorage::new(None, None, crate::download::downloader()),
+            package_storage: PackageStorage::new(
+                None,
+                self.package_path,
+                crate::download::downloader(),
+            ),
             now: OnceLock::new(),
         };
         Ok(world)

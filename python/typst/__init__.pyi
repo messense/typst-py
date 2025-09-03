@@ -3,7 +3,7 @@ from typing import List, Optional, TypeVar, overload, Dict, Union, Literal, Tupl
 
 Input = TypeVar("Input", str, pathlib.Path, bytes)
 OutputFormat = Literal["pdf", "svg", "png", "html"]
-
+PathLike = TypeVar("PathLike", str, pathlib.Path)
 
 class TypstError(RuntimeError):
     """A structured error raised during Typst compilation or querying.
@@ -54,11 +54,12 @@ class Compiler:
     def __init__(
         self,
         input: Input,
-        root: Optional[Input] = None,
+        root: Optional[PathLike] = None,
         font_paths: Union[Fonts, List[Input]] = [],
         ignore_system_fonts: bool = False,
         sys_inputs: Dict[str, str] = {},
-        pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
+        pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
+        package_path: Optional[PathLike] = None
     ) -> None:
         """Initialize a Typst compiler.
         Args:
@@ -67,6 +68,7 @@ class Compiler:
             font_paths (Union[Fonts, List[Input]]): Folders with fonts.
             ignore_system_fonts (bool): Ignore system fonts.
             sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
+            package_path: Optional[PathLike]: Path to load local packages from
         """
 
     def compile(
@@ -132,7 +134,8 @@ def compile(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
+    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
+    package_path: Optional[PathLike] = None
 ) -> None: ...
 @overload
 def compile(
@@ -144,7 +147,8 @@ def compile(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
+    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
+    package_path: Optional[PathLike] = None
 ) -> bytes: ...
 def compile(
     input: Input,
@@ -155,7 +159,8 @@ def compile(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
+    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
+    package_path: Optional[PathLike] = None
 ) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
     Args:
@@ -169,6 +174,7 @@ def compile(
         Allowed values are `pdf`, `svg` and `png`.
         ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
+        package_path: Optional[PathLike]: Path to load local packages from
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
@@ -183,7 +189,8 @@ def compile_with_warnings(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
+    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
+    package_path: Optional[PathLike] = None
 ) -> Tuple[None, List[TypstWarning]]: ...
 @overload
 def compile_with_warnings(
@@ -195,7 +202,8 @@ def compile_with_warnings(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
+    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
+    package_path: Optional[PathLike] = None
 ) -> Tuple[bytes, List[TypstWarning]]: ...
 def compile_with_warnings(
     input: Input,
@@ -206,7 +214,8 @@ def compile_with_warnings(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = []
+    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
+    package_path: Optional[PathLike] = None
 ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
     """Compile a Typst project and return warnings.
     Args:
@@ -220,6 +229,7 @@ def compile_with_warnings(
         Allowed values are `pdf`, `svg` and `png`.
         ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
+        package_path: Optional[PathLike]: Path to load local packages from
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
@@ -234,6 +244,7 @@ def query(
     font_paths: Union[Fonts, List[Input]] = [],
     ignore_system_fonts: bool = False,
     sys_inputs: Dict[str, str] = {},
+    package_path: Optional[PathLike] = None
 ) -> str:
     """Query a Typst document.
     Args:
@@ -246,6 +257,7 @@ def query(
         font_paths (Union[Fonts, List[Input]]): Folders with fonts.
         ignore_system_fonts (bool): Ignore system fonts
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
+        package_path: Optional[PathLike]: Path to load local packages from
     Returns:
         str: Return the query result.
     """
