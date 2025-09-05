@@ -188,7 +188,7 @@ pub fn format_diagnostics(
 }
 
 /// Create a label for a span.
-fn label(world: &SystemWorld, span: Span) -> Option<Label<FileId>> {
+pub fn label(world: &SystemWorld, span: Span) -> Option<Label<FileId>> {
     Some(Label::primary(span.id()?, world.range(span)?))
 }
 

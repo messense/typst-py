@@ -9,7 +9,6 @@ use query::{QueryCommand, SerializationFormat, query as typst_query};
 use std::collections::HashMap;
 use typst::diag::SourceDiagnostic;
 use typst::foundations::{Dict, Value};
-use typst::WorldExt;
 use codespan_reporting::files::Files;
 use world::SystemWorld;
 
@@ -101,67 +100,55 @@ fn create_typst_error_details_from_diagnostics(
     world: &SystemWorld,
     errors: &[SourceDiagnostic],
 ) -> TypstDiagnosticDetails {
-    
-    // Extract structured information from the first error (most relevant)
     let primary_error = errors.first();
     let message = primary_error
         .map(|err| err.message.to_string())
         .unwrap_or_default();
 
     let (hints, trace) = if let Some(error) = primary_error {
-        // Extract hints
+        // Extract hints directly from the diagnostic
         let hints = error
             .hints
             .iter()
             .map(|h| h.to_string())
             .collect::<Vec<_>>();
 
-        // Extract trace information with location details
+        // Build trace entries using existing label infrastructure
         let mut trace = Vec::new();
         
-        // Add main error location if available
-        if let Some(span) = error.span.id().and_then(|id| {
-            world.range(error.span).map(|range| (id, range))
-        }) {
-            let (file_id, range) = span;
-            if let Ok(file_name) = world.name(file_id) {
-                let source = world.lookup(file_id);
-                if let Some(line_number) = source.byte_to_line(range.start) {
-                    let line_display = line_number + 1; // Convert to 1-based line numbers
-                    if let Some(column_number) = source.byte_to_column(range.start) {
-                        let column_display = column_number + 1; // Convert to 1-based column numbers
-                        trace.push(format!("at {}:{}:{}", file_name, line_display, column_display));
-                    } else {
-                        trace.push(format!("at {}:{}", file_name, line_display));
+        // Add main error location using the same approach as format_diagnostics
+        if let Some(label) = compiler::label(world, error.span) {
+            let file_id = label.file_id;
+            let range = &label.range;
+            if let Ok(filename) = world.name(file_id) {
+                if let Ok(line) = world.line_index(file_id, range.start) {
+                    if let Ok(column) = world.column_number(file_id, line, range.start) {
+                        trace.push(format!("at {}:{}:{}", filename, line + 1, column + 1));
                     }
                 }
             }
         }
         
-        // Add stack trace points with location details
+        // Add stack trace points
         for point in &error.trace {
-            let mut trace_entry = point.v.to_string();
-            
-            // Add location info if available
-            if let Some(span) = point.span.id().and_then(|id| {
-                world.range(point.span).map(|range| (id, range))
-            }) {
-                let (file_id, range) = span;
-                if let Ok(file_name) = world.name(file_id) {
-                    let source = world.lookup(file_id);
-                    if let Some(line_number) = source.byte_to_line(range.start) {
-                        let line_display = line_number + 1; // Convert to 1-based line numbers
-                        if let Some(column_number) = source.byte_to_column(range.start) {
-                            let column_display = column_number + 1; // Convert to 1-based column numbers
-                            trace_entry = format!("{} (at {}:{}:{})", trace_entry, file_name, line_display, column_display);
+            let message = point.v.to_string();
+            if let Some(label) = compiler::label(world, point.span) {
+                let file_id = label.file_id;
+                let range = &label.range;
+                if let Ok(filename) = world.name(file_id) {
+                    if let Ok(line) = world.line_index(file_id, range.start) {
+                        if let Ok(column) = world.column_number(file_id, line, range.start) {
+                            trace.push(format!("{} at {}:{}:{}", message, filename, line + 1, column + 1));
                         } else {
-                            trace_entry = format!("{} (at {}:{})", trace_entry, file_name, line_display);
+                            trace.push(format!("{} at {}:{}", message, filename, line + 1));
                         }
                     }
+                } else {
+                    trace.push(message);
                 }
+            } else {
+                trace.push(message);
             }
-            
-            trace.push(trace_entry);
         }
 
         (hints, trace)
@@ -181,65 +168,54 @@ fn create_typst_warning_details_from_diagnostics(
     world: &SystemWorld,
     warnings: &[SourceDiagnostic],
 ) -> Vec<TypstDiagnosticDetails> {
-    
     warnings
         .iter()
         .map(|warning| {
             let message = warning.message.to_string();
 
-            // Extract hints
+            // Extract hints directly from the diagnostic
             let hints = warning
                 .hints
                 .iter()
                 .map(|h| h.to_string())
                 .collect::<Vec<_>>();
 
-            // Extract trace information with location details
+            // Build trace entries using existing label infrastructure
             let mut trace = Vec::new();
             
-            // Add main warning location if available
-            if let Some(span) = warning.span.id().and_then(|id| {
-                world.range(warning.span).map(|range| (id, range))
-            }) {
-                let (file_id, range) = span;
-                if let Ok(file_name) = world.name(file_id) {
-                    let source = world.lookup(file_id);
-                    if let Some(line_number) = source.byte_to_line(range.start) {
-                        let line_display = line_number + 1; // Convert to 1-based line numbers
-                        if let Some(column_number) = source.byte_to_column(range.start) {
-                            let column_display = column_number + 1; // Convert to 1-based column numbers
-                            trace.push(format!("at {}:{}:{}", file_name, line_display, column_display));
-                        } else {
-                            trace.push(format!("at {}:{}", file_name, line_display));
+            // Add main warning location using the same approach as format_diagnostics
+            if let Some(label) = compiler::label(world, warning.span) {
+                let file_id = label.file_id;
+                let range = &label.range;
+                if let Ok(filename) = world.name(file_id) {
+                    if let Ok(line) = world.line_index(file_id, range.start) {
+                        if let Ok(column) = world.column_number(file_id, line, range.start) {
+                            trace.push(format!("at {}:{}:{}", filename, line + 1, column + 1));
                         }
                     }
                 }
             }
             
-            // Add stack trace points with location details
+            // Add stack trace points
             for point in &warning.trace {
-                let mut trace_entry = point.v.to_string();
-                
-                // Add location info if available
-                if let Some(span) = point.span.id().and_then(|id| {
-                    world.range(point.span).map(|range| (id, range))
-                }) {
-                    let (file_id, range) = span;
-                    if let Ok(file_name) = world.name(file_id) {
-                        let source = world.lookup(file_id);
-                        if let Some(line_number) = source.byte_to_line(range.start) {
-                            let line_display = line_number + 1; // Convert to 1-based line numbers
-                            if let Some(column_number) = source.byte_to_column(range.start) {
-                                let column_display = column_number + 1; // Convert to 1-based column numbers
-                                trace_entry = format!("{} (at {}:{}:{})", trace_entry, file_name, line_display, column_display);
+                let message = point.v.to_string();
+                if let Some(label) = compiler::label(world, point.span) {
+                    let file_id = label.file_id;
+                    let range = &label.range;
+                    if let Ok(filename) = world.name(file_id) {
+                        if let Ok(line) = world.line_index(file_id, range.start) {
+                            if let Ok(column) = world.column_number(file_id, line, range.start) {
+                                trace.push(format!("{} at {}:{}:{}", message, filename, line + 1, column + 1));
                             } else {
-                                trace_entry = format!("{} (at {}:{})", trace_entry, file_name, line_display);
+                                trace.push(format!("{} at {}:{}", message, filename, line + 1));
                             }
                         }
+                    } else {
+                        trace.push(message);
                     }
+                } else {
+                    trace.push(message);
                 }
-                
-                trace.push(trace_entry);
             }
 
             TypstDiagnosticDetails {
