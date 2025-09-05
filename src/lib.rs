@@ -9,6 +9,8 @@ use query::{QueryCommand, SerializationFormat, query as typst_query};
 use std::collections::HashMap;
 use typst::diag::SourceDiagnostic;
 use typst::foundations::{Dict, Value};
+use typst::WorldExt;
+use codespan_reporting::files::Files;
 use world::SystemWorld;
 
 mod compiler;
@@ -96,8 +98,10 @@ mod output_template {
 
 /// Create structured error details from diagnostics
 fn create_typst_error_details_from_diagnostics(
+    world: &SystemWorld,
     errors: &[SourceDiagnostic],
 ) -> TypstDiagnosticDetails {
+    
     // Extract structured information from the first error (most relevant)
     let primary_error = errors.first();
     let message = primary_error
@@ -112,12 +116,53 @@ fn create_typst_error_details_from_diagnostics(
             .map(|h| h.to_string())
             .collect::<Vec<_>>();
 
-        // Extract trace information
-        let trace = error
-            .trace
-            .iter()
-            .map(|point| format!("at {}", point.v))
-            .collect::<Vec<_>>();
+        // Extract trace information with location details
+        let mut trace = Vec::new();
+        
+        // Add main error location if available
+        if let Some(span) = error.span.id().and_then(|id| {
+            world.range(error.span).map(|range| (id, range))
+        }) {
+            let (file_id, range) = span;
+            if let Ok(file_name) = world.name(file_id) {
+                let source = world.lookup(file_id);
+                if let Some(line_number) = source.byte_to_line(range.start) {
+                    let line_display = line_number + 1; // Convert to 1-based line numbers
+                    if let Some(column_number) = source.byte_to_column(range.start) {
+                        let column_display = column_number + 1; // Convert to 1-based column numbers
+                        trace.push(format!("at {}:{}:{}", file_name, line_display, column_display));
+                    } else {
+                        trace.push(format!("at {}:{}", file_name, line_display));
+                    }
+                }
+            }
+        }
+        
+        // Add stack trace points with location details
+        for point in &error.trace {
+            let mut trace_entry = point.v.to_string();
+            
+            // Add location info if available
+            if let Some(span) = point.span.id().and_then(|id| {
+                world.range(point.span).map(|range| (id, range))
+            }) {
+                let (file_id, range) = span;
+                if let Ok(file_name) = world.name(file_id) {
+                    let source = world.lookup(file_id);
+                    if let Some(line_number) = source.byte_to_line(range.start) {
+                        let line_display = line_number + 1; // Convert to 1-based line numbers
+                        if let Some(column_number) = source.byte_to_column(range.start) {
+                            let column_display = column_number + 1; // Convert to 1-based column numbers
+                            trace_entry = format!("{} (at {}:{}:{})", trace_entry, file_name, line_display, column_display);
+                        } else {
+                            trace_entry = format!("{} (at {}:{})", trace_entry, file_name, line_display);
+                        }
+                    }
+                }
+            }
+            
+            trace.push(trace_entry);
+        }
 
         (hints, trace)
     } else {
@@ -133,8 +178,10 @@ fn create_typst_error_details_from_diagnostics(
 
 /// Create structured warning details from diagnostics
 fn create_typst_warning_details_from_diagnostics(
+    world: &SystemWorld,
     warnings: &[SourceDiagnostic],
 ) -> Vec<TypstDiagnosticDetails> {
+    
     warnings
         .iter()
         .map(|warning| {
@@ -147,12 +194,53 @@ fn create_typst_warning_details_from_diagnostics(
                 .map(|h| h.to_string())
                 .collect::<Vec<_>>();
 
-            // Extract trace information
-            let trace = warning
-                .trace
-                .iter()
-                .map(|point| format!("at {}", point.v))
-                .collect::<Vec<_>>();
+            // Extract trace information with location details
+            let mut trace = Vec::new();
+            
+            // Add main warning location if available
+            if let Some(span) = warning.span.id().and_then(|id| {
+                world.range(warning.span).map(|range| (id, range))
+            }) {
+                let (file_id, range) = span;
+                if let Ok(file_name) = world.name(file_id) {
+                    let source = world.lookup(file_id);
+                    if let Some(line_number) = source.byte_to_line(range.start) {
+                        let line_display = line_number + 1; // Convert to 1-based line numbers
+                        if let Some(column_number) = source.byte_to_column(range.start) {
+                            let column_display = column_number + 1; // Convert to 1-based column numbers
+                            trace.push(format!("at {}:{}:{}", file_name, line_display, column_display));
+                        } else {
+                            trace.push(format!("at {}:{}", file_name, line_display));
+                        }
+                    }
+                }
+            }
+            
+            // Add stack trace points with location details
+            for point in &warning.trace {
+                let mut trace_entry = point.v.to_string();
+                
+                // Add location info if available
+                if let Some(span) = point.span.id().and_then(|id| {
+                    world.range(point.span).map(|range| (id, range))
+                }) {
+                    let (file_id, range) = span;
+                    if let Ok(file_name) = world.name(file_id) {
+                        let source = world.lookup(file_id);
+                        if let Some(line_number) = source.byte_to_line(range.start) {
+                            let line_display = line_number + 1; // Convert to 1-based line numbers
+                            if let Some(column_number) = source.byte_to_column(range.start) {
+                                let column_display = column_number + 1; // Convert to 1-based column numbers
+                                trace_entry = format!("{} (at {}:{}:{})", trace_entry, file_name, line_display, column_display);
+                            } else {
+                                trace_entry = format!("{} (at {}:{})", trace_entry, file_name, line_display);
+                            }
+                        }
+                    }
+                }
+                
+                trace.push(trace_entry);
+            }
 
             TypstDiagnosticDetails {
                 message,
@@ -219,7 +307,7 @@ impl Compiler {
             .compile_with_diagnostics(format, ppi, pdf_standards)
         {
             Ok((buffer, _warnings)) => Ok(buffer), // Ignore warnings for backward compatibility
-            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&errors)),
+            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&self.world, &errors)),
         }
     }
 
@@ -234,13 +322,13 @@ impl Compiler {
             .compile_with_diagnostics(format, ppi, pdf_standards)
         {
             Ok((buffer, warnings)) => {
-                let warning_details = create_typst_warning_details_from_diagnostics(&warnings);
+                let warning_details = create_typst_warning_details_from_diagnostics(&self.world, &warnings);
                 Ok(CompilationResult {
                     data: buffer,
                     warnings: warning_details,
                 })
             }
-            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&errors)),
+            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&self.world, &errors)),
         }
     }
 

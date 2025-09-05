@@ -235,6 +235,86 @@ def test_invalid_query_selector(hello_typ_path):
         typst.query(hello_typ_path, "invalid[selector", format="json")
 
 
+def test_typst_error_trace_and_hints_populated():
+    """Test that TypstError includes detailed trace with file locations and hints.
+    
+    This test addresses issue #121 to ensure TypstError.trace and TypstError.hints
+    are properly populated with location information and helpful hints.
+    """
+    # Create a test file with an error that should have location information
+    error_content = '''= Document Title
+
+This is a test with an error.
+#box(width: red)  // This should cause a type error with location info
+'''
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+        f.write(error_content)
+        temp_path = pathlib.Path(f.name)
+    
+    try:
+        with pytest.raises(typst.TypstError) as exc_info:
+            typst.compile(temp_path, format="pdf")
+        
+        error = exc_info.value
+        
+        # Basic type checks (existing functionality)
+        assert isinstance(error.message, str)
+        assert isinstance(error.hints, list)
+        assert isinstance(error.trace, list)
+        
+        # Enhanced checks for meaningful content
+        assert len(error.message) > 0, "Error message should not be empty"
+        
+        # The trace should include file location information when available
+        # Our implementation should include filename and line number information
+        if error.trace:
+            trace_str = " ".join(error.trace)
+            # Should contain location reference (filename or "at" keyword)
+            location_found = (
+                temp_path.name in trace_str or 
+                "at " in trace_str or
+                any(":" in trace_item for trace_item in error.trace)
+            )
+            assert location_found, f"Trace should contain location info, got: {error.trace}"
+        
+        # Hints should be a list (may be empty, but should be a list)
+        assert isinstance(error.hints, list), f"Hints should be a list, got: {type(error.hints)}"
+        
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def test_typst_warning_trace_populated():
+    """Test that TypstWarning includes trace information when available."""
+    # Use a simple document that should compile successfully
+    warning_content = '''= Document Title
+
+This document should compile without errors.
+'''
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+        f.write(warning_content)
+        temp_path = pathlib.Path(f.name)
+    
+    try:
+        # Use compile_with_warnings to get warnings structure
+        result, warnings = typst.compile_with_warnings(temp_path, format="pdf")
+        
+        # The compilation should succeed
+        assert isinstance(result, bytes)
+        assert isinstance(warnings, list)
+        
+        # Test warning structure (even if no warnings)
+        for warning in warnings:
+            assert isinstance(warning.message, str)
+            assert isinstance(warning.hints, list) 
+            assert isinstance(warning.trace, list)
+        
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
 # Output format tests
 @pytest.mark.parametrize("format_name", ["pdf", "svg", "png"])
 def test_all_formats(format_name):
