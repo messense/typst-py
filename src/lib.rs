@@ -9,6 +9,7 @@ use query::{QueryCommand, SerializationFormat, query as typst_query};
 use std::collections::HashMap;
 use typst::diag::SourceDiagnostic;
 use typst::foundations::{Dict, Value};
+use codespan_reporting::files::Files;
 use world::SystemWorld;
 
 mod compiler;
@@ -96,28 +97,59 @@ mod output_template {
 
 /// Create structured error details from diagnostics
 fn create_typst_error_details_from_diagnostics(
+    world: &SystemWorld,
     errors: &[SourceDiagnostic],
 ) -> TypstDiagnosticDetails {
-    // Extract structured information from the first error (most relevant)
     let primary_error = errors.first();
     let message = primary_error
         .map(|err| err.message.to_string())
         .unwrap_or_default();
 
     let (hints, trace) = if let Some(error) = primary_error {
-        // Extract hints
+        // Extract hints directly from the diagnostic
         let hints = error
             .hints
             .iter()
             .map(|h| h.to_string())
             .collect::<Vec<_>>();
 
-        // Extract trace information
-        let trace = error
-            .trace
-            .iter()
-            .map(|point| format!("at {}", point.v))
-            .collect::<Vec<_>>();
+        // Build trace entries using existing label infrastructure
+        let mut trace = Vec::new();
+        
+        // Add main error location using the same approach as format_diagnostics
+        if let Some(label) = compiler::label(world, error.span) {
+            let file_id = label.file_id;
+            let range = &label.range;
+            if let Ok(filename) = world.name(file_id) {
+                if let Ok(line) = world.line_index(file_id, range.start) {
+                    if let Ok(column) = world.column_number(file_id, line, range.start) {
+                        trace.push(format!("at {}:{}:{}", filename, line + 1, column + 1));
+                    }
+                }
+            }
+        }
+        
+        // Add stack trace points
+        for point in &error.trace {
+            let message = point.v.to_string();
+            if let Some(label) = compiler::label(world, point.span) {
+                let file_id = label.file_id;
+                let range = &label.range;
+                if let Ok(filename) = world.name(file_id) {
+                    if let Ok(line) = world.line_index(file_id, range.start) {
+                        if let Ok(column) = world.column_number(file_id, line, range.start) {
+                            trace.push(format!("{} at {}:{}:{}", message, filename, line + 1, column + 1));
+                        } else {
+                            trace.push(format!("{} at {}:{}", message, filename, line + 1));
+                        }
+                    }
+                } else {
+                    trace.push(message);
+                }
+            } else {
+                trace.push(message);
+            }
+        }
 
         (hints, trace)
     } else {
@@ -133,6 +165,7 @@ fn create_typst_error_details_from_diagnostics(
 
 /// Create structured warning details from diagnostics
 fn create_typst_warning_details_from_diagnostics(
+    world: &SystemWorld,
     warnings: &[SourceDiagnostic],
 ) -> Vec<TypstDiagnosticDetails> {
     warnings
@@ -140,19 +173,50 @@ fn create_typst_warning_details_from_diagnostics(
         .map(|warning| {
             let message = warning.message.to_string();
 
-            // Extract hints
+            // Extract hints directly from the diagnostic
             let hints = warning
                 .hints
                 .iter()
                 .map(|h| h.to_string())
                 .collect::<Vec<_>>();
 
-            // Extract trace information
-            let trace = warning
-                .trace
-                .iter()
-                .map(|point| format!("at {}", point.v))
-                .collect::<Vec<_>>();
+            // Build trace entries using existing label infrastructure
+            let mut trace = Vec::new();
+            
+            // Add main warning location using the same approach as format_diagnostics
+            if let Some(label) = compiler::label(world, warning.span) {
+                let file_id = label.file_id;
+                let range = &label.range;
+                if let Ok(filename) = world.name(file_id) {
+                    if let Ok(line) = world.line_index(file_id, range.start) {
+                        if let Ok(column) = world.column_number(file_id, line, range.start) {
+                            trace.push(format!("at {}:{}:{}", filename, line + 1, column + 1));
+                        }
+                    }
+                }
+            }
+            
+            // Add stack trace points
+            for point in &warning.trace {
+                let message = point.v.to_string();
+                if let Some(label) = compiler::label(world, point.span) {
+                    let file_id = label.file_id;
+                    let range = &label.range;
+                    if let Ok(filename) = world.name(file_id) {
+                        if let Ok(line) = world.line_index(file_id, range.start) {
+                            if let Ok(column) = world.column_number(file_id, line, range.start) {
+                                trace.push(format!("{} at {}:{}:{}", message, filename, line + 1, column + 1));
+                            } else {
+                                trace.push(format!("{} at {}:{}", message, filename, line + 1));
+                            }
+                        }
+                    } else {
+                        trace.push(message);
+                    }
+                } else {
+                    trace.push(message);
+                }
+            }
 
             TypstDiagnosticDetails {
                 message,
@@ -219,7 +283,7 @@ impl Compiler {
             .compile_with_diagnostics(format, ppi, pdf_standards)
         {
             Ok((buffer, _warnings)) => Ok(buffer), // Ignore warnings for backward compatibility
-            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&errors)),
+            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&self.world, &errors)),
         }
     }
 
@@ -234,13 +298,13 @@ impl Compiler {
             .compile_with_diagnostics(format, ppi, pdf_standards)
         {
             Ok((buffer, warnings)) => {
-                let warning_details = create_typst_warning_details_from_diagnostics(&warnings);
+                let warning_details = create_typst_warning_details_from_diagnostics(&self.world, &warnings);
                 Ok(CompilationResult {
                     data: buffer,
                     warnings: warning_details,
                 })
             }
-            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&errors)),
+            Err((errors, _warnings)) => Err(create_typst_error_details_from_diagnostics(&self.world, &errors)),
         }
     }
 
