@@ -14,6 +14,14 @@ dynamic = ["version"]
 dependencies = []
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+readme = "README.md"
+
+[project.urls]
+
+Homepage = "https://github.com/messense/typst-py/"
+Repository = "https://github.com/messense/typst-py"
+Readme = "https://github.com/messense/typst-py/blob/main/README.md"
+Documentation = "https://github.com/messense/typst-py/blob/main/README.md"
 
 [dependency-groups]
 dev = [
