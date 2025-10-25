@@ -1,12 +1,14 @@
 use comemo::Track;
-use ecow::{eco_format, EcoString};
+use ecow::{EcoString, eco_format};
 use serde::Serialize;
-use typst::diag::{bail, StrResult, Warned};
+use typst::World;
+use typst::diag::{StrResult, Warned, bail};
+use typst::engine::Sink;
 use typst::foundations::{Content, IntoValue, LocatableSelector, Scope};
 use typst::layout::PagedDocument;
 use typst::syntax::Span;
-use typst::World;
-use typst_eval::{eval_string, EvalMode};
+use typst::syntax::SyntaxMode;
+use typst_eval::eval_string;
 
 use crate::world::SystemWorld;
 
@@ -69,9 +71,10 @@ fn retrieve(
     let selector = eval_string(
         &typst::ROUTINES,
         world.track(),
+        Sink::new().track_mut(),
         &command.selector,
         Span::detached(),
-        EvalMode::Code,
+        SyntaxMode::Code,
         Scope::default(),
     )
     .map_err(|errors| {
