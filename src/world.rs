@@ -1,4 +1,5 @@
 use chrono::{DateTime, Datelike, Local};
+use rustc_hash::FxHashMap;
 use std::fs;
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -13,8 +14,6 @@ use typst_kit::{
     fonts::{FontSearcher, Fonts},
     package::PackageStorage,
 };
-
-use std::collections::HashMap;
 
 use crate::{Input, download::SlientDownload};
 
@@ -33,7 +32,7 @@ pub struct SystemWorld {
     /// Locations of and storage for lazily loaded fonts.
     fonts: Arc<typst_kit::fonts::Fonts>,
     /// Maps file ids to source files and buffers.
-    slots: Mutex<HashMap<FileId, FileSlot>>,
+    slots: Mutex<FxHashMap<FileId, FileSlot>>,
     /// Holds information about where packages are stored.
     package_storage: PackageStorage,
     /// The current datetime if requested. This is stored here to ensure it is
@@ -173,7 +172,7 @@ impl SystemWorldBuilder {
             None => Arc::new(FontSearcher::new().include_system_fonts(true).search()),
         };
 
-        let mut slots = HashMap::new();
+        let mut slots = FxHashMap::default();
         let main = match self.input {
             Input::Path(path) => {
                 // Resolve the virtual path of the main file within the project root.
@@ -313,7 +312,6 @@ impl<T: Clone> SlotCell<T> {
             accessed: false,
         }
     }
-
 
     /// Marks the cell as not yet accessed in preparation of the next
     /// compilation.

@@ -2830,6 +2830,7 @@ dependencies = [
  "ecow",
  "pathdiff",
  "pyo3",
+ "rustc-hash",
  "serde",
  "serde_json",
  "serde_yaml",
