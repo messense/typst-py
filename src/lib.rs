@@ -334,7 +334,7 @@ impl Compiler {
         format: Option<&str>,
         ppi: Option<f32>,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         if let Some(output) = output {
             // if format is None and output with postfix ".pdf", ".png" and ".svg" is
             // provided, use the postfix as format
@@ -355,7 +355,7 @@ impl Compiler {
             };
 
             let buffers = py
-                .allow_threads(|| self.compile(format, ppi, &pdf_standards))
+                .detach(|| self.compile(format, ppi, &pdf_standards))
                 .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
 
             let can_handle_multiple =
@@ -379,7 +379,7 @@ impl Compiler {
             Ok(py.None())
         } else {
             let buffers = py
-                .allow_threads(|| self.compile(format, ppi, &pdf_standards))
+                .detach(|| self.compile(format, ppi, &pdf_standards))
                 .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
             if buffers.len() == 1 {
                 // Return a single buffer as a single byte string
@@ -403,9 +403,9 @@ impl Compiler {
         format: Option<&str>,
         ppi: Option<f32>,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let result = py
-            .allow_threads(|| self.compile_with_warnings(format, ppi, &pdf_standards))
+            .detach(|| self.compile_with_warnings(format, ppi, &pdf_standards))
             .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
 
         // Convert warnings to Python objects
@@ -438,7 +438,7 @@ impl Compiler {
             // Return (None, warnings) tuple
             Ok(PyTuple::new(py, [py.None(), warnings_list.into()])?.into())
         } else {
-            let compiled_data: PyObject = if result.data.len() == 1 {
+            let compiled_data: Py<PyAny> = if result.data.len() == 1 {
                 // Return a single buffer as a single byte string
                 PyBytes::new(py, &result.data[0]).into()
             } else {
@@ -463,8 +463,8 @@ impl Compiler {
         field: Option<&str>,
         one: bool,
         format: Option<&str>,
-    ) -> PyResult<PyObject> {
-        py.allow_threads(|| self.query(selector, field, one, format))
+    ) -> PyResult<Py<PyAny>> {
+        py.detach(|| self.query(selector, field, one, format))
             .map(|s| PyString::new(py, &s).into())
     }
 }
@@ -495,7 +495,7 @@ fn compile(
     sys_inputs: HashMap<String, String>,
     #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     package_path: Option<PathBuf>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         input,
         root,
@@ -533,7 +533,7 @@ fn compile_with_warnings(
     sys_inputs: HashMap<String, String>,
     #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     package_path: Option<PathBuf>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         input,
         root,
@@ -575,7 +575,7 @@ fn py_query(
     ignore_system_fonts: bool,
     sys_inputs: HashMap<String, String>,
     package_path: Option<PathBuf>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         input,
         root,
@@ -613,7 +613,7 @@ fn extract_pdf_standard(obj: &Bound<'_, PyAny>) -> PyResult<typst_pdf::PdfStanda
 fn extract_pdf_standards(obj: &Bound<'_, PyAny>) -> PyResult<Vec<typst_pdf::PdfStandard>> {
     if obj.is_none() {
         Ok(vec![])
-    } else if let Ok(s) = obj.downcast::<PyList>() {
+    } else if let Ok(s) = obj.cast::<PyList>() {
         s.iter().map(|s| extract_pdf_standard(&s)).collect()
     } else {
         extract_pdf_standard(obj).map(|s| vec![s])
