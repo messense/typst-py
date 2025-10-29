@@ -50,7 +50,7 @@ jobs:
           sccache: "true"
           manylinux: ${{ matrix.platform.manylinux || 'auto' }}
           before-script-linux: |
-            which yum > /dev/null && yum install -y perl-IPC-Cmd
+            which yum > /dev/null && yum install -y perl-core
       - name: Build free-threaded wheels
         uses: PyO3/maturin-action@v1
         env:

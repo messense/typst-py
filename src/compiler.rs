@@ -1,14 +1,13 @@
 use chrono::{Datelike, Timelike};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term::{self, termcolor};
-use comemo;
-use ecow::{eco_format, EcoString};
+use ecow::{EcoString, eco_format};
+use typst::WorldExt;
 use typst::diag::{Severity, SourceDiagnostic, StrResult, Warned};
 use typst::foundations::Datetime;
-use typst::html::HtmlDocument;
 use typst::layout::PagedDocument;
-use typst::syntax::{FileId, Source, Span};
-use typst::WorldExt;
+use typst::syntax::{FileId, Lines, Span};
+use typst_html::HtmlDocument;
 
 use crate::world::SystemWorld;
 
@@ -22,12 +21,13 @@ impl SystemWorld {
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
+    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
+    {
         let Warned { output, warnings } = typst::compile(self);
-        
+
         // Reset the world state after compilation to ensure file changes are detected in next compilation
         self.reset();
-        
+
         // Evict comemo cache to limit memory usage after compilation
         comemo::evict(10);
 
@@ -39,10 +39,10 @@ impl SystemWorld {
                     "pdf" => export_pdf(
                         &document,
                         self,
-                        typst_pdf::PdfStandards::new(pdf_standards).map_err(|_e| {
-                            (vec![], vec![])
-                        })?,
-                    ).map(|pdf| vec![pdf]),
+                        typst_pdf::PdfStandards::new(pdf_standards)
+                            .map_err(|_e| (vec![], vec![]))?,
+                    )
+                    .map(|pdf| vec![pdf]),
                     "png" => export_image(&document, ImageExportFormat::Png, ppi),
                     "svg" => export_image(&document, ImageExportFormat::Svg, ppi),
                     "html" => {
@@ -50,16 +50,18 @@ impl SystemWorld {
                             output,
                             warnings: _,
                         } = typst::compile::<HtmlDocument>(self);
-                        
+
                         // Evict comemo cache to limit memory usage after HTML compilation
                         comemo::evict(10);
-                        
+
                         export_html(&output.unwrap(), self).map(|html| vec![html])
                     }
                     _fmt => return Err((vec![], vec![])), // Return empty diagnostics for unknown format
                 };
-                
-                result.map(|data| (data, warnings.to_vec())).map_err(|_| (vec![], vec![]))
+
+                result
+                    .map(|data| (data, warnings.to_vec()))
+                    .map_err(|_| (vec![], vec![]))
             }
             Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
         }
@@ -195,7 +197,7 @@ fn label(world: &SystemWorld, span: Span) -> Option<Label<FileId>> {
 impl<'a> codespan_reporting::files::Files<'a> for SystemWorld {
     type FileId = FileId;
     type Name = String;
-    type Source = Source;
+    type Source = Lines<String>;
 
     fn name(&'a self, id: FileId) -> CodespanResult<Self::Name> {
         let vpath = id.vpath();

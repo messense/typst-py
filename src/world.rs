@@ -1,20 +1,19 @@
+use chrono::{DateTime, Datelike, Local};
+use rustc_hash::FxHashMap;
 use std::fs;
+use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
-
-use chrono::{DateTime, Datelike, Local};
 use typst::diag::{FileError, FileResult, StrResult};
 use typst::foundations::{Bytes, Datetime, Dict};
-use typst::syntax::{FileId, Source, VirtualPath};
+use typst::syntax::{FileId, Lines, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
-use typst::{Library, LibraryBuilder, World};
+use typst::{Library, LibraryExt, World};
 use typst_kit::{
     fonts::{FontSearcher, Fonts},
     package::PackageStorage,
 };
-
-use std::collections::HashMap;
 
 use crate::{Input, download::SlientDownload};
 
@@ -33,7 +32,7 @@ pub struct SystemWorld {
     /// Locations of and storage for lazily loaded fonts.
     fonts: Arc<typst_kit::fonts::Fonts>,
     /// Maps file ids to source files and buffers.
-    slots: Mutex<HashMap<FileId, FileSlot>>,
+    slots: Mutex<FxHashMap<FileId, FileSlot>>,
     /// Holds information about where packages are stored.
     package_storage: PackageStorage,
     /// The current datetime if requested. This is stored here to ensure it is
@@ -118,9 +117,18 @@ impl SystemWorld {
 
     /// Lookup a source file by id.
     #[track_caller]
-    pub fn lookup(&self, id: FileId) -> Source {
-        self.source(id)
-            .expect("file id does not point to any source file")
+    pub fn lookup(&self, id: FileId) -> Lines<String> {
+        self.slot(id, |slot| {
+            if let Some(source) = slot.source.get() {
+                let source = source.as_ref().expect("file is not valid");
+                source.lines().clone()
+            } else if let Some(bytes) = slot.file.get() {
+                let bytes = bytes.as_ref().expect("file is not valid");
+                Lines::try_from(bytes).expect("file is not valid utf-8")
+            } else {
+                panic!("file id does not point to any source file");
+            }
+        })
     }
 }
 
@@ -164,7 +172,7 @@ impl SystemWorldBuilder {
             None => Arc::new(FontSearcher::new().include_system_fonts(true).search()),
         };
 
-        let mut slots = HashMap::new();
+        let mut slots = FxHashMap::default();
         let main = match self.input {
             Input::Path(path) => {
                 // Resolve the virtual path of the main file within the project root.
@@ -194,7 +202,7 @@ impl SystemWorldBuilder {
             root: self.root,
             main,
             library: LazyHash::new(
-                LibraryBuilder::default()
+                Library::builder()
                     .with_features(vec![typst::Feature::Html].into_iter().collect())
                     .with_inputs(self.inputs)
                     .build(),
@@ -247,9 +255,8 @@ impl FileSlot {
         project_root: &Path,
         package_storage: &PackageStorage,
     ) -> FileResult<Source> {
-        let id = self.id;
         self.source.get_or_init(
-            || system_path(project_root, id, package_storage),
+            || read(self.id, project_root, package_storage),
             |data, prev| {
                 let text = decode_utf8(&data)?;
                 if let Some(mut prev) = prev {
@@ -262,15 +269,14 @@ impl FileSlot {
         )
     }
 
+    /// Retrieve the file's bytes.
     fn file(&mut self, project_root: &Path, package_storage: &PackageStorage) -> FileResult<Bytes> {
-        let id = self.id;
         self.file.get_or_init(
-            || system_path(project_root, id, package_storage),
+            || read(self.id, project_root, package_storage),
             |data, _| Ok(Bytes::new(data)),
         )
     }
 }
-
 /// The path of the slot on the system.
 fn system_path(root: &Path, id: FileId, package_storage: &PackageStorage) -> FileResult<PathBuf> {
     // Determine the root path relative to which the file path
@@ -313,6 +319,11 @@ impl<T: Clone> SlotCell<T> {
         self.accessed = false;
     }
 
+    /// Gets the contents of the cell.
+    fn get(&self) -> Option<&FileResult<T>> {
+        self.data.as_ref()
+    }
+
     fn init(&mut self, data: T) {
         self.data = Some(Ok(data));
         self.accessed = true;
@@ -321,25 +332,25 @@ impl<T: Clone> SlotCell<T> {
     /// Gets the contents of the cell or initialize them.
     fn get_or_init(
         &mut self,
-        path: impl FnOnce() -> FileResult<PathBuf>,
+        load: impl FnOnce() -> FileResult<Vec<u8>>,
         f: impl FnOnce(Vec<u8>, Option<T>) -> FileResult<T>,
     ) -> FileResult<T> {
         // If we accessed the file already in this compilation, retrieve it.
-        if std::mem::replace(&mut self.accessed, true) {
-            if let Some(data) = &self.data {
-                return data.clone();
-            }
+        if mem::replace(&mut self.accessed, true)
+            && let Some(data) = &self.data
+        {
+            return data.clone();
         }
 
         // Read and hash the file.
-        let result = path().and_then(|p| read(&p));
+        let result = load();
         let fingerprint = typst::utils::hash128(&result);
 
         // If the file contents didn't change, yield the old processed data.
-        if std::mem::replace(&mut self.fingerprint, fingerprint) == fingerprint {
-            if let Some(data) = &self.data {
-                return data.clone();
-            }
+        if mem::replace(&mut self.fingerprint, fingerprint) == fingerprint
+            && let Some(data) = &self.data
+        {
+            return data.clone();
         }
 
         let prev = self.data.take().and_then(Result::ok);
@@ -350,8 +361,11 @@ impl<T: Clone> SlotCell<T> {
     }
 }
 
-/// Read a file.
-fn read(path: &Path) -> FileResult<Vec<u8>> {
+fn read(id: FileId, project_root: &Path, package_storage: &PackageStorage) -> FileResult<Vec<u8>> {
+    read_from_disk(&system_path(project_root, id, package_storage)?)
+}
+
+fn read_from_disk(path: &Path) -> FileResult<Vec<u8>> {
     let f = |e| FileError::from_io(e, path);
     if fs::metadata(path).map_err(f)?.is_dir() {
         Err(FileError::IsDirectory)
