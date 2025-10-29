@@ -208,21 +208,20 @@ def test_compile_with_fonts_object():
 
 # Error handling tests
 def test_invalid_syntax_raises_typst_error():
-    # Write invalid content to a temporary file since string input is treated as filename
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
-        f.write("#invalid syntax here")
-        temp_path = f.name
-    
-    try:
-        with pytest.raises(typst.TypstError) as exc_info:
-            typst.compile(temp_path, format="pdf")
-        
-        error = exc_info.value
-        assert isinstance(error.message, str)
-        assert isinstance(error.hints, list)
-        assert isinstance(error.trace, list)
-    finally:
-        pathlib.Path(temp_path).unlink(missing_ok=True)
+    broken_content  = b"#invalid syntax here"
+
+    with pytest.raises(typst.TypstError) as exc_info:
+        typst.compile(broken_content, format="pdf")
+
+    error = exc_info.value
+    assert isinstance(error.message, str)
+    assert isinstance(error.hints, list)
+    assert isinstance(error.trace, list)
+
+    assert error.message
+    # These two are always empty, we need to figure out why
+    # assert error.hints
+    # assert error.trace
 
 
 def test_file_not_found_raises_typst_error():

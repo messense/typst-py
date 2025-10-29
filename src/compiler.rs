@@ -21,11 +21,16 @@ impl SystemWorld {
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
+    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
+    {
         let normalized_format = format.unwrap_or("pdf").to_ascii_lowercase();
         match normalized_format.as_str() {
             "html" => self.compile_html_with_diagnostics(),
-            "pdf" | "png" | "svg" => self.compile_paginated_with_diagnostics(normalized_format.as_str(), ppi, pdf_standards),
+            "pdf" | "png" | "svg" => self.compile_paginated_with_diagnostics(
+                normalized_format.as_str(),
+                ppi,
+                pdf_standards,
+            ),
             _ => Err((vec![], vec![])),
         }
     }
@@ -36,7 +41,8 @@ impl SystemWorld {
         format: &str,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
+    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
+    {
         let Warned { output, warnings } = typst::compile(self);
         // Evict comemo cache to limit memory usage after compilation
         comemo::evict(10);
@@ -67,21 +73,17 @@ impl SystemWorld {
     /// Compile and export HTML format
     fn compile_html_with_diagnostics(
         &mut self,
-    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)> {
+    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
+    {
         let Warned { output, warnings } = typst::compile::<HtmlDocument>(self);
-
-        // Reset the world state after compilation to ensure file changes are detected in next compilation
-        self.reset();
 
         // Evict comemo cache to limit memory usage after compilation
         comemo::evict(10);
 
         match output {
-            Ok(document) => {
-                export_html(&document, self)
-                    .map(|html| (vec![html], warnings.to_vec()))
-                    .map_err(|_| (vec![], vec![]))
-            }
+            Ok(document) => export_html(&document, self)
+                .map(|html| (vec![html], warnings.to_vec()))
+                .map_err(|_| (vec![], vec![])),
             Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
         }
     }
