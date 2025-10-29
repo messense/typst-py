@@ -28,6 +28,7 @@ pub struct TypstDiagnosticDetails {
     pub message: String,
     pub hints: Vec<String>,
     pub trace: Vec<String>,
+    pub diagnostic: String,
 }
 
 impl TypstDiagnosticDetails {
@@ -40,6 +41,7 @@ impl TypstDiagnosticDetails {
         exception_obj.setattr("message", self.message)?;
         exception_obj.setattr("hints", self.hints)?;
         exception_obj.setattr("trace", self.trace)?;
+        exception_obj.setattr("diagnostic", self.diagnostic)?;
 
         Ok(exception)
     }
@@ -53,6 +55,7 @@ impl TypstDiagnosticDetails {
         warning_obj.setattr("message", self.message)?;
         warning_obj.setattr("hints", self.hints)?;
         warning_obj.setattr("trace", self.trace)?;
+        warning_obj.setattr("diagnostic", self.diagnostic)?;
 
         Ok(warning)
     }
@@ -101,11 +104,14 @@ fn create_typst_diagnostic_details(
     warnings: &[SourceDiagnostic],
 ) -> TypstDiagnosticDetails {
     // Get the main error message by formatting all diagnostics
-    let formatted_message = crate::compiler::format_diagnostics(world, errors, warnings)
+    let diagnostic = crate::compiler::format_diagnostics(world, errors, warnings)
         .unwrap_or_else(|_| "Failed to format diagnostic message".to_string());
 
     // Extract structured information from the first error (most relevant)
     let primary_error = errors.first();
+    let message = primary_error
+        .map(|err| err.message.to_string())
+        .unwrap_or_default();
 
     let (hints, trace) = if let Some(error) = primary_error {
         // Extract hints
@@ -128,9 +134,10 @@ fn create_typst_diagnostic_details(
     };
 
     TypstDiagnosticDetails {
-        message: formatted_message,
+        message,
         hints,
         trace,
+        diagnostic,
     }
 }
 
@@ -143,9 +150,9 @@ fn create_typst_warning_details_from_diagnostics(
         .iter()
         .map(|warning| {
             // Format just this warning
-            let formatted_message =
-                crate::compiler::format_diagnostics(world, &[], &[warning.clone()])
-                    .unwrap_or_else(|_| warning.message.to_string());
+            let message = warning.message.to_string();
+            let diagnostic = crate::compiler::format_diagnostics(world, &[], &[warning.clone()])
+                .unwrap_or_else(|_| message.clone());
 
             // Extract hints
             let hints = warning
@@ -162,9 +169,10 @@ fn create_typst_warning_details_from_diagnostics(
                 .collect::<Vec<_>>();
 
             TypstDiagnosticDetails {
-                message: formatted_message,
+                message,
                 hints,
                 trace,
+                diagnostic,
             }
         })
         .collect()
@@ -221,7 +229,7 @@ impl Compiler {
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
     ) -> Result<Vec<Vec<u8>>, TypstDiagnosticDetails> {
-        match self
+        let ret = match self
             .world
             .compile_with_diagnostics(format, ppi, pdf_standards)
         {
@@ -231,7 +239,10 @@ impl Compiler {
                 &errors,
                 &warnings,
             )),
-        }
+        };
+        // Reset the world state after compilation to ensure file changes are detected in next compilation
+        self.world.reset();
+        ret
     }
 
     fn compile_with_warnings(
@@ -240,7 +251,7 @@ impl Compiler {
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
     ) -> Result<CompilationResult, TypstDiagnosticDetails> {
-        match self
+        let ret = match self
             .world
             .compile_with_diagnostics(format, ppi, pdf_standards)
         {
@@ -257,7 +268,10 @@ impl Compiler {
                 &errors,
                 &warnings,
             )),
-        }
+        };
+        // Reset the world state after compilation to ensure file changes are detected in next compilation
+        self.world.reset();
+        ret
     }
 
     fn query(

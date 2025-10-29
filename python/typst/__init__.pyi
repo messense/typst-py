@@ -16,12 +16,19 @@ class TypstError(RuntimeError):
         hints (list[str]): List of helpful hints for resolving the error
         trace (list[str]): Stack trace information showing error location context
     """
+
     message: str
+    diagnostic: str
     hints: List[str]
     trace: List[str]
 
-    def __init__(self, message: str, hints: Optional[List[str]] = None, trace: Optional[List[str]] = None) -> None: ...
-
+    def __init__(
+        self,
+        message: str,
+        diagnostic: str,
+        hints: Optional[List[str]] = None,
+        trace: Optional[List[str]] = None,
+    ) -> None: ...
 
 class TypstWarning(UserWarning):
     """A structured warning raised during Typst compilation.
@@ -34,21 +41,27 @@ class TypstWarning(UserWarning):
         hints (list[str]): List of helpful hints related to the warning
         trace (list[str]): Stack trace information showing warning location context
     """
+
     message: str
+    diagnostic: str
     hints: List[str]
     trace: List[str]
 
-    def __init__(self, message: str, hints: Optional[List[str]] = None, trace: Optional[List[str]] = None) -> None: ...
-
+    def __init__(
+        self,
+        message: str,
+        diagnostic: str,
+        hints: Optional[List[str]] = None,
+        trace: Optional[List[str]] = None,
+    ) -> None: ...
 
 class Fonts:
     def __init__(
         self,
         include_system_fonts: bool = True,
         include_embedded_fonts: bool = True,
-        font_paths: List[Input] = []
+        font_paths: List[Input] = [],
     ) -> None: ...
-
 
 class Compiler:
     def __init__(
@@ -58,8 +71,10 @@ class Compiler:
         font_paths: Union[Fonts, List[Input]] = [],
         ignore_system_fonts: bool = False,
         sys_inputs: Dict[str, str] = {},
-        pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
-        package_path: Optional[PathLike] = None
+        pdf_standards: Optional[
+            Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
+        ] = [],
+        package_path: Optional[PathLike] = None,
     ) -> None:
         """Initialize a Typst compiler.
         Args:
@@ -134,8 +149,10 @@ def compile(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
-    package_path: Optional[PathLike] = None
+    pdf_standards: Optional[
+        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
+    ] = [],
+    package_path: Optional[PathLike] = None,
 ) -> None: ...
 @overload
 def compile(
@@ -147,8 +164,10 @@ def compile(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
-    package_path: Optional[PathLike] = None
+    pdf_standards: Optional[
+        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
+    ] = [],
+    package_path: Optional[PathLike] = None,
 ) -> bytes: ...
 def compile(
     input: Input,
@@ -159,8 +178,10 @@ def compile(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
-    package_path: Optional[PathLike] = None
+    pdf_standards: Optional[
+        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
+    ] = [],
+    package_path: Optional[PathLike] = None,
 ) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
     Args:
@@ -189,8 +210,10 @@ def compile_with_warnings(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
-    package_path: Optional[PathLike] = None
+    pdf_standards: Optional[
+        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
+    ] = [],
+    package_path: Optional[PathLike] = None,
 ) -> Tuple[None, List[TypstWarning]]: ...
 @overload
 def compile_with_warnings(
@@ -202,8 +225,10 @@ def compile_with_warnings(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
-    package_path: Optional[PathLike] = None
+    pdf_standards: Optional[
+        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
+    ] = [],
+    package_path: Optional[PathLike] = None,
 ) -> Tuple[bytes, List[TypstWarning]]: ...
 def compile_with_warnings(
     input: Input,
@@ -214,8 +239,10 @@ def compile_with_warnings(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]] = [],
-    package_path: Optional[PathLike] = None
+    pdf_standards: Optional[
+        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
+    ] = [],
+    package_path: Optional[PathLike] = None,
 ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
     """Compile a Typst project and return warnings.
     Args:
@@ -244,7 +271,7 @@ def query(
     font_paths: Union[Fonts, List[Input]] = [],
     ignore_system_fonts: bool = False,
     sys_inputs: Dict[str, str] = {},
-    package_path: Optional[PathLike] = None
+    package_path: Optional[PathLike] = None,
 ) -> str:
     """Query a Typst document.
     Args:
