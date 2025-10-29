@@ -48,14 +48,14 @@ def test_compile_to_png_bytes(hello_typ_path):
 def test_compile_from_string_content():
     # String content needs to be passed as bytes for direct compilation
     content = "= Hello\nThis is a test document."
-    result = typst.compile(content.encode('utf-8'), format="pdf")
+    result = typst.compile(content.encode("utf-8"), format="pdf")
     assert isinstance(result, bytes)
     assert result.startswith(b"%PDF-")
 
 
 def test_compile_from_bytes_content():
     content = "= Hello\nThis is a test document."
-    content_bytes = content.encode('utf-8')
+    content_bytes = content.encode("utf-8")
     result = typst.compile(content_bytes, format="pdf")
     assert isinstance(result, bytes)
     assert result.startswith(b"%PDF-")
@@ -64,7 +64,7 @@ def test_compile_from_bytes_content():
 def test_compile_to_file(hello_typ_path):
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
         output_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(hello_typ_path, output=output_path)
         assert result is None
@@ -159,7 +159,9 @@ def test_query_with_field(hello_typ_path):
 
 def test_query_one_element(hello_typ_path):
     # Query for a specific heading that should be unique
-    result = typst.query(hello_typ_path, "heading.where(level: 1)", one=True, format="json")
+    result = typst.query(
+        hello_typ_path, "heading.where(level: 1)", one=True, format="json"
+    )
     data = json.loads(result)
     assert not isinstance(data, list)
 
@@ -209,14 +211,14 @@ def test_compile_with_fonts_object():
 # Error handling tests
 def test_invalid_syntax_raises_typst_error():
     # Write invalid content to a temporary file since string input is treated as filename
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write("#invalid syntax here")
         temp_path = f.name
-    
+
     try:
         with pytest.raises(typst.TypstError) as exc_info:
             typst.compile(temp_path, format="pdf")
-        
+
         error = exc_info.value
         assert isinstance(error.message, str)
         assert isinstance(error.hints, list)
@@ -240,14 +242,14 @@ def test_invalid_query_selector(hello_typ_path):
 def test_all_formats(format_name):
     # Write content to temporary file
     simple_content = "= Hello\nThis is a simple document."
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write(simple_content)
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(temp_path, format=format_name)
         assert result is not None
-        
+
         if format_name == "pdf":
             assert isinstance(result, bytes)
             assert result.startswith(b"%PDF-")
@@ -274,10 +276,10 @@ def test_all_formats(format_name):
 def test_unsupported_format():
     # Test with an invalid format parameter
     simple_content = "= Hello\nThis is a simple document."
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write(simple_content)
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         # This should fail at the type level, but let's test runtime behavior
         with pytest.raises((typst.TypstError, ValueError, TypeError)):
@@ -289,10 +291,10 @@ def test_unsupported_format():
 
 # Edge cases tests
 def test_empty_document():
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write("")
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(temp_path, format="pdf")
         assert isinstance(result, bytes)
@@ -303,10 +305,12 @@ def test_empty_document():
 
 def test_unicode_content():
     unicode_content = "= 测试\n这是一个中文文档 🎉"
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False, encoding='utf-8') as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".typ", delete=False, encoding="utf-8"
+    ) as f:
         f.write(unicode_content)
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(temp_path, format="pdf")
         assert isinstance(result, bytes)
@@ -316,11 +320,13 @@ def test_unicode_content():
 
 
 def test_large_document():
-    large_content = "= Large Document\n" + "This is a paragraph.\n" * 100  # Reduced size
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    large_content = (
+        "= Large Document\n" + "This is a paragraph.\n" * 100
+    )  # Reduced size
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write(large_content)
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(temp_path, format="pdf")
         assert isinstance(result, bytes)
@@ -335,10 +341,10 @@ $ sum_(i=1)^n i = (n(n+1))/2 $
 $ integral_0^infinity e^(-x^2) dif x = sqrt(pi)/2 $
 $ lim_(x->0) (sin x)/x = 1 $
 """
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write(math_content)
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(temp_path, format="pdf")
         assert isinstance(result, bytes)
@@ -352,12 +358,12 @@ def test_compile_and_query_workflow(hello_typ_path):
     # First compile the document
     pdf_result = typst.compile(hello_typ_path, format="pdf")
     assert isinstance(pdf_result, bytes)
-    
+
     # Then query for headings
     headings = typst.query(hello_typ_path, "heading", format="json")
     headings_data = json.loads(headings)
     assert len(headings_data) > 0
-    
+
     # Query for footnotes
     footnotes = typst.query(hello_typ_path, "<footnote-1>", format="json")
     footnotes_data = json.loads(footnotes)
@@ -366,14 +372,14 @@ def test_compile_and_query_workflow(hello_typ_path):
 
 def test_compiler_multiple_operations(hello_typ_path):
     compiler = typst.Compiler(hello_typ_path)
-    
+
     # Compile to different formats
     pdf_result = compiler.compile(format="pdf")
     svg_result = compiler.compile(format="svg")
-    
+
     # Query the same document
     headings = compiler.query("heading", format="json")
-    
+
     assert isinstance(pdf_result, bytes)
     assert isinstance(svg_result, list)
     assert isinstance(headings, str)
@@ -381,18 +387,18 @@ def test_compiler_multiple_operations(hello_typ_path):
 
 def test_compile_with_all_options(hello_typ_path):
     fonts = typst.Fonts(include_system_fonts=True)
-    
+
     # Use PDF format instead of PNG to avoid multi-page issue
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
         output_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(
             hello_typ_path,
             output=output_path,
             format="pdf",
             font_paths=fonts,
-            sys_inputs={"test": "value"}
+            sys_inputs={"test": "value"},
         )
         assert result is None
         assert output_path.exists()

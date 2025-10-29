@@ -24,10 +24,6 @@ impl SystemWorld {
     ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
     {
         let Warned { output, warnings } = typst::compile(self);
-
-        // Reset the world state after compilation to ensure file changes are detected in next compilation
-        self.reset();
-
         // Evict comemo cache to limit memory usage after compilation
         comemo::evict(10);
 
