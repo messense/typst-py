@@ -366,18 +366,20 @@ impl Compiler {
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     ) -> PyResult<Py<PyAny>> {
         if let Some(output) = output {
-            // if format is None and output with postfix ".pdf", ".png" and ".svg" is
+            // if format is None and output with postfix ".pdf", ".png", "html", and ".svg" is
             // provided, use the postfix as format
             let format = match format {
                 Some(format) => Some(format),
                 None => {
-                    let output = output.to_str().unwrap();
+                    let output = output.to_str().expect("There should be one");
                     if output.ends_with(".pdf") {
                         Some("pdf")
                     } else if output.ends_with(".png") {
                         Some("png")
                     } else if output.ends_with(".svg") {
                         Some("svg")
+                    } else if output.ends_with(".html") {
+                        Some("html")
                     } else {
                         None
                     }
