@@ -23,15 +23,33 @@ impl SystemWorld {
         pdf_standards: &[typst_pdf::PdfStandard],
     ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
     {
+        let normalized_format = format.unwrap_or("pdf").to_ascii_lowercase();
+        match normalized_format.as_str() {
+            "html" => self.compile_html_with_diagnostics(),
+            "pdf" | "png" | "svg" => self.compile_paginated_with_diagnostics(
+                normalized_format.as_str(),
+                ppi,
+                pdf_standards,
+            ),
+            _ => Err((vec![], vec![])),
+        }
+    }
+
+    /// Compile and export paginated formats (PDF, PNG, SVG)
+    fn compile_paginated_with_diagnostics(
+        &mut self,
+        format: &str,
+        ppi: Option<f32>,
+        pdf_standards: &[typst_pdf::PdfStandard],
+    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
+    {
         let Warned { output, warnings } = typst::compile(self);
         // Evict comemo cache to limit memory usage after compilation
         comemo::evict(10);
 
         match output {
-            // Export the PDF / PNG.
             Ok(document) => {
-                // Assert format is "pdf" or "png" or "svg"
-                let result = match format.unwrap_or("pdf").to_ascii_lowercase().as_str() {
+                let result = match format {
                     "pdf" => export_pdf(
                         &document,
                         self,
@@ -41,24 +59,31 @@ impl SystemWorld {
                     .map(|pdf| vec![pdf]),
                     "png" => export_image(&document, ImageExportFormat::Png, ppi),
                     "svg" => export_image(&document, ImageExportFormat::Svg, ppi),
-                    "html" => {
-                        let Warned {
-                            output,
-                            warnings: _,
-                        } = typst::compile::<HtmlDocument>(self);
-
-                        // Evict comemo cache to limit memory usage after HTML compilation
-                        comemo::evict(10);
-
-                        export_html(&output.unwrap(), self).map(|html| vec![html])
-                    }
-                    _fmt => return Err((vec![], vec![])), // Return empty diagnostics for unknown format
+                    _ => return Err((vec![], vec![])),
                 };
 
                 result
                     .map(|data| (data, warnings.to_vec()))
                     .map_err(|_| (vec![], vec![]))
             }
+            Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
+        }
+    }
+
+    /// Compile and export HTML format
+    fn compile_html_with_diagnostics(
+        &mut self,
+    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
+    {
+        let Warned { output, warnings } = typst::compile::<HtmlDocument>(self);
+
+        // Evict comemo cache to limit memory usage after compilation
+        comemo::evict(10);
+
+        match output {
+            Ok(document) => export_html(&document, self)
+                .map(|html| (vec![html], warnings.to_vec()))
+                .map_err(|_| (vec![], vec![])),
             Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
         }
     }
