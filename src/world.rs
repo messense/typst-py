@@ -25,6 +25,8 @@ pub struct SystemWorld {
     root: PathBuf,
     /// The input path.
     main: FileId,
+    /// Reusable file id for in-memory (bytes) inputs.
+    bytes_main: Option<FileId>,
     /// Typst's standard library.
     library: LazyHash<Library>,
     /// Metadata about discovered fonts.
@@ -84,6 +86,16 @@ impl World for SystemWorld {
 impl SystemWorld {
     pub fn builder(root: PathBuf, input: Input) -> SystemWorldBuilder {
         SystemWorldBuilder::new(root, input)
+    }
+
+    /// Update the primary input for the world, reusing the existing
+    /// [`SystemWorld`] configuration (fonts, packages, etc.).
+    pub fn set_input(&mut self, input: Input) -> StrResult<()> {
+        self.reset();
+        match input {
+            Input::Path(path) => self.configure_path_input(path),
+            Input::Bytes(bytes) => self.configure_bytes_input(bytes),
+        }
     }
 
     /// Reset the compilation state in preparation of a new compilation.
@@ -173,6 +185,7 @@ impl SystemWorldBuilder {
         };
 
         let mut slots = FxHashMap::default();
+        let mut bytes_main = None;
         let main = match self.input {
             Input::Path(path) => {
                 // Resolve the virtual path of the main file within the project root.
@@ -194,6 +207,7 @@ impl SystemWorldBuilder {
                     .init(Source::new(file_id, decode_utf8(&bytes)?.to_string()));
                 file_slot.file.init(Bytes::new(bytes));
                 slots.insert(file_id, file_slot);
+                bytes_main = Some(file_id);
                 file_id
             }
         };
@@ -201,6 +215,7 @@ impl SystemWorldBuilder {
             workdir: std::env::current_dir().ok(),
             root: self.root,
             main,
+            bytes_main,
             library: LazyHash::new(
                 Library::builder()
                     .with_features(vec![typst::Feature::Html].into_iter().collect())
@@ -243,6 +258,15 @@ impl FileSlot {
         }
     }
 
+    /// Create a slot backed by explicitly provided bytes.
+    fn from_inline_bytes(id: FileId, bytes: Vec<u8>) -> FileResult<Self> {
+        let mut slot = FileSlot::new(id);
+        slot.source
+            .init(Source::new(id, decode_utf8(&bytes)?.to_string()));
+        slot.file.init(Bytes::new(bytes));
+        Ok(slot)
+    }
+
     /// Marks the file as not yet accessed in preparation of the next
     /// compilation.
     fn reset(&mut self) {
@@ -275,6 +299,34 @@ impl FileSlot {
             || read(self.id, project_root, package_storage),
             |data, _| Ok(Bytes::new(data)),
         )
+    }
+}
+
+impl SystemWorld {
+    fn configure_path_input(&mut self, path: PathBuf) -> StrResult<()> {
+        let path = path
+            .canonicalize()
+            .map_err(|err| format!("Failed to canonicalize path: {}", err))?;
+        let Some(vpath) = VirtualPath::within_root(&path, &self.root) else {
+            return Err("input file must be contained in project root".into());
+        };
+        self.main = FileId::new(None, vpath);
+        Ok(())
+    }
+
+    fn configure_bytes_input(&mut self, bytes: Vec<u8>) -> StrResult<()> {
+        let id = if let Some(id) = self.bytes_main {
+            id
+        } else {
+            let id = FileId::new_fake(VirtualPath::new("<bytes>"));
+            self.bytes_main = Some(id);
+            id
+        };
+
+        let slot = FileSlot::from_inline_bytes(id, bytes).map_err(|err| err.to_string())?;
+        self.main = id;
+        self.slots.lock().unwrap().insert(id, slot);
+        Ok(())
     }
 }
 /// The path of the slot on the system.

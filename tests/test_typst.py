@@ -2,6 +2,7 @@ import pytest
 import pathlib
 import tempfile
 import json
+from typing import cast
 
 import typst
 
@@ -34,7 +35,8 @@ def test_compile_to_svg_bytes(hello_typ_path):
     assert isinstance(result, list)
     assert len(result) >= 1
     assert isinstance(result[0], bytes)
-    assert b"<svg" in result[0]
+    first_page = cast(bytes, result[0])
+    assert b"<svg" in first_page
 
 
 def test_compile_to_png_bytes(hello_typ_path):
@@ -42,7 +44,8 @@ def test_compile_to_png_bytes(hello_typ_path):
     assert isinstance(result, list)
     assert len(result) >= 1
     assert isinstance(result[0], bytes)
-    assert result[0].startswith(b"\x89PNG")
+    first_page = cast(bytes, result[0])
+    assert first_page.startswith(b"\x89PNG")
 
 
 def test_compile_from_string_content():
@@ -64,7 +67,7 @@ def test_compile_from_bytes_content():
 def test_compile_to_file(hello_typ_path):
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
         output_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(hello_typ_path, output=output_path)
         assert result is None
@@ -79,7 +82,8 @@ def test_compile_with_custom_ppi(hello_typ_path):
     assert isinstance(result, list)
     assert len(result) >= 1
     assert isinstance(result[0], bytes)
-    assert result[0].startswith(b"\x89PNG")
+    first_page = cast(bytes, result[0])
+    assert first_page.startswith(b"\x89PNG")
 
 
 def test_compile_with_warnings(hello_typ_path):
@@ -97,6 +101,32 @@ def test_compiler_init(hello_typ_path):
     assert compiler is not None
 
 
+def test_compiler_init_without_input(hello_typ_path):
+    compiler = typst.Compiler()
+    result = compiler.compile(input=hello_typ_path, format="pdf")
+    assert isinstance(result, bytes)
+    assert result.startswith(b"%PDF-")
+
+
+def test_compiler_compile_empty_document():
+    compiler = typst.Compiler()
+    result = compiler.compile(format="pdf")
+    assert isinstance(result, bytes)
+    assert result.startswith(b"%PDF-")
+
+
+def test_compiler_reuse_with_multiple_inputs(hello_typ_path, simple_typst):
+    compiler = typst.Compiler()
+
+    first_result = compiler.compile(input=hello_typ_path, format="pdf")
+    assert isinstance(first_result, bytes)
+    assert first_result.startswith(b"%PDF-")
+
+    second_result = compiler.compile(input=simple_typst.encode("utf-8"), format="pdf")
+    assert isinstance(second_result, bytes)
+    assert second_result.startswith(b"%PDF-")
+
+
 def test_compiler_compile_pdf(hello_typ_path):
     compiler = typst.Compiler(hello_typ_path)
     result = compiler.compile(format="pdf")
@@ -110,7 +140,8 @@ def test_compiler_compile_svg(hello_typ_path):
     assert isinstance(result, list)
     assert len(result) >= 1
     assert isinstance(result[0], bytes)
-    assert b"<svg" in result[0]
+    first_page = cast(bytes, result[0])
+    assert b"<svg" in first_page
 
 
 def test_compiler_compile_png(hello_typ_path):
@@ -119,7 +150,8 @@ def test_compiler_compile_png(hello_typ_path):
     assert isinstance(result, list)
     assert len(result) >= 1
     assert isinstance(result[0], bytes)
-    assert result[0].startswith(b"\x89PNG")
+    first_page = cast(bytes, result[0])
+    assert first_page.startswith(b"\x89PNG")
 
 
 def test_compiler_with_sys_inputs(hello_typ_path):
@@ -244,10 +276,10 @@ def test_all_formats(format_name, use_file, tmp_path):
         path = tmp_path / "a_file.typ"
         path.write_bytes(simple_content)
         simple_content = path
-    
+
     result = typst.compile(simple_content, format=format_name)
     assert result is not None
-    
+
     if format_name == "pdf":
         assert isinstance(result, bytes)
         assert result.startswith(b"%PDF-")
@@ -255,7 +287,8 @@ def test_all_formats(format_name, use_file, tmp_path):
         # SVG can return bytes (single page) or list (multi-page)
         if isinstance(result, list):
             assert len(result) >= 1
-            assert b"<svg" in result[0]
+            first_page = cast(bytes, result[0])
+            assert b"<svg" in first_page
         else:
             assert isinstance(result, bytes)
             assert b"<svg" in result
@@ -263,7 +296,8 @@ def test_all_formats(format_name, use_file, tmp_path):
         # PNG can return bytes (single page) or list (multi-page)
         if isinstance(result, list):
             assert len(result) >= 1
-            assert result[0].startswith(b"\x89PNG")
+            first_page = cast(bytes, result[0])
+            assert first_page.startswith(b"\x89PNG")
         else:
             assert isinstance(result, bytes)
             assert result.startswith(b"\x89PNG")
@@ -279,7 +313,7 @@ def test_unsupported_format():
     with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
         f.write(simple_content)
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         # This should fail at the type level, but let's test runtime behavior
         with pytest.raises((typst.TypstError, ValueError, TypeError)):
@@ -294,7 +328,7 @@ def test_empty_document():
     with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
         f.write("")
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(temp_path, format="pdf")
         assert isinstance(result, bytes)
@@ -308,7 +342,7 @@ def test_unicode_content():
     with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False, encoding='utf-8') as f:
         f.write(unicode_content)
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(temp_path, format="pdf")
         assert isinstance(result, bytes)
@@ -322,7 +356,7 @@ def test_large_document():
     with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
         f.write(large_content)
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(temp_path, format="pdf")
         assert isinstance(result, bytes)
@@ -340,7 +374,7 @@ $ lim_(x->0) (sin x)/x = 1 $
     with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
         f.write(math_content)
         temp_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(temp_path, format="pdf")
         assert isinstance(result, bytes)
@@ -354,12 +388,12 @@ def test_compile_and_query_workflow(hello_typ_path):
     # First compile the document
     pdf_result = typst.compile(hello_typ_path, format="pdf")
     assert isinstance(pdf_result, bytes)
-    
+
     # Then query for headings
     headings = typst.query(hello_typ_path, "heading", format="json")
     headings_data = json.loads(headings)
     assert len(headings_data) > 0
-    
+
     # Query for footnotes
     footnotes = typst.query(hello_typ_path, "<footnote-1>", format="json")
     footnotes_data = json.loads(footnotes)
@@ -368,14 +402,14 @@ def test_compile_and_query_workflow(hello_typ_path):
 
 def test_compiler_multiple_operations(hello_typ_path):
     compiler = typst.Compiler(hello_typ_path)
-    
+
     # Compile to different formats
     pdf_result = compiler.compile(format="pdf")
     svg_result = compiler.compile(format="svg")
-    
+
     # Query the same document
     headings = compiler.query("heading", format="json")
-    
+
     assert isinstance(pdf_result, bytes)
     assert isinstance(svg_result, list)
     assert isinstance(headings, str)
@@ -383,11 +417,11 @@ def test_compiler_multiple_operations(hello_typ_path):
 
 def test_compile_with_all_options(hello_typ_path):
     fonts = typst.Fonts(include_system_fonts=True)
-    
+
     # Use PDF format instead of PNG to avoid multi-page issue
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
         output_path = pathlib.Path(f.name)
-    
+
     try:
         result = typst.compile(
             hello_typ_path,

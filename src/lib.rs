@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{env, path::PathBuf, sync::Arc};
 
 use pyo3::create_exception;
 use pyo3::exceptions::{PyRuntimeError, PyUserWarning, PyValueError};
@@ -223,6 +223,15 @@ pub struct Compiler {
 }
 
 impl Compiler {
+    fn apply_input(&mut self, input: Option<Input>) -> PyResult<()> {
+        if let Some(input) = input {
+            self.world
+                .set_input(input)
+                .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
+        }
+        Ok(())
+    }
+
     fn compile(
         &mut self,
         format: Option<&str>,
@@ -311,7 +320,7 @@ impl Compiler {
     /// Create a new typst compiler instance
     #[new]
     #[pyo3(signature = (
-        input,
+        input = None,
         root = None,
         font_paths = FontsOrPaths::Paths(Vec::new()),
         ignore_system_fonts = false,
@@ -319,13 +328,14 @@ impl Compiler {
         package_path = None,
     ))]
     fn new(
-        input: Input,
+        input: Option<Input>,
         root: Option<PathBuf>,
         font_paths: FontsOrPaths,
         ignore_system_fonts: bool,
         sys_inputs: HashMap<String, String>,
         package_path: Option<PathBuf>,
     ) -> PyResult<Self> {
+        let input = input.unwrap_or_else(|| Input::Bytes(Vec::new()));
         let root = if let Some(root) = root {
             root.canonicalize()?
         } else if let Input::Path(path) = &input {
@@ -334,7 +344,9 @@ impl Compiler {
                 .map(Into::into)
                 .unwrap_or_else(|| PathBuf::new())
         } else {
-            PathBuf::new()
+            env::current_dir()
+                .and_then(|cwd| cwd.canonicalize())
+                .map_err(|err| PyRuntimeError::new_err(err.to_string()))?
         };
         let fonts = match font_paths {
             FontsOrPaths::Paths(paths) => Fonts::new(!ignore_system_fonts, true, paths),
@@ -356,15 +368,17 @@ impl Compiler {
     }
 
     /// Compile a typst file to PDF
-    #[pyo3(name = "compile", signature = (output = None, format = None, ppi = None, pdf_standards = Vec::new()))]
+    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, pdf_standards = Vec::new()))]
     fn py_compile(
         &mut self,
         py: Python<'_>,
+        input: Option<Input>,
         output: Option<PathBuf>,
         format: Option<&str>,
         ppi: Option<f32>,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     ) -> PyResult<Py<PyAny>> {
+        self.apply_input(input)?;
         if let Some(output) = output {
             // if format is None and output with postfix ".pdf", ".png", "html", and ".svg" is
             // provided, use the postfix as format
@@ -427,15 +441,17 @@ impl Compiler {
     }
 
     /// Compile a typst file and return both result and warnings
-    #[pyo3(name = "compile_with_warnings", signature = (output = None, format = None, ppi = None, pdf_standards = Vec::new()))]
+    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, pdf_standards = Vec::new()))]
     fn py_compile_with_warnings(
         &mut self,
         py: Python<'_>,
+        input: Option<Input>,
         output: Option<PathBuf>,
         format: Option<&str>,
         ppi: Option<f32>,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     ) -> PyResult<Py<PyAny>> {
+        self.apply_input(input)?;
         let result = py
             .detach(|| self.compile_with_warnings(format, ppi, &pdf_standards))
             .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
@@ -529,14 +545,14 @@ fn compile(
     package_path: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
-        input,
+        Some(input),
         root,
         font_paths,
         ignore_system_fonts,
         sys_inputs,
         package_path,
     )?;
-    compiler.py_compile(py, output, format, ppi, pdf_standards)
+    compiler.py_compile(py, None, output, format, ppi, pdf_standards)
 }
 
 /// Compile a typst file and return both result and warnings
@@ -567,14 +583,14 @@ fn compile_with_warnings(
     package_path: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
-        input,
+        Some(input),
         root,
         font_paths,
         ignore_system_fonts,
         sys_inputs,
         package_path,
     )?;
-    compiler.py_compile_with_warnings(py, output, format, ppi, pdf_standards)
+    compiler.py_compile_with_warnings(py, None, output, format, ppi, pdf_standards)
 }
 
 /// Query a typst document
@@ -609,7 +625,7 @@ fn py_query(
     package_path: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
-        input,
+        Some(input),
         root,
         font_paths,
         ignore_system_fonts,

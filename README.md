@@ -38,8 +38,8 @@ svg_bytes = typst.compile("hello.typ", format="svg")
 images = typst.compile("hello.typ", output="hello{n}.png", format="png")
 
 # Or use Compiler class to avoid reinitialization
-compiler = typst.Compiler("hello.typ")
-compiler.compile(format="png", ppi=144.0)
+compiler = typst.Compiler()
+compiler.compile(input="hello.typ", format="png", ppi=144.0)
 
 # Query something
 import json
