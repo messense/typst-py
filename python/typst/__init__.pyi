@@ -66,7 +66,7 @@ class Fonts:
 class Compiler:
     def __init__(
         self,
-        input: Input,
+        input: Optional[Input] = None,
         root: Optional[PathLike] = None,
         font_paths: Union[Fonts, List[Input]] = [],
         ignore_system_fonts: bool = False,
@@ -78,7 +78,7 @@ class Compiler:
     ) -> None:
         """Initialize a Typst compiler.
         Args:
-            input: .typ file bytes or path to project's main .typ file.
+            input: Optional .typ file bytes or path to project's main .typ file. Defaults to an empty in-memory document when omitted.
             root (Optional[PathLike], optional): Root path for the Typst project.
             font_paths (Union[Fonts, List[Input]]): Folders with fonts.
             ignore_system_fonts (bool): Ignore system fonts.
@@ -88,12 +88,14 @@ class Compiler:
 
     def compile(
         self,
+        input: Optional[Input] = None,
         output: Optional[Input] = None,
         format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
     ) -> Optional[Union[bytes, List[bytes]]]:
         """Compile a Typst project.
         Args:
+            input: Optional .typ file bytes or path to compile for this invocation.
             output (Optional[PathLike], optional): Path to save the compiled file.
             Allowed extensions are `.pdf`, `.svg` and `.png`
             format (Optional[str]): Output format.
@@ -105,12 +107,14 @@ class Compiler:
 
     def compile_with_warnings(
         self,
+        input: Optional[Input] = None,
         output: Optional[Input] = None,
         format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
     ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
         """Compile a Typst project and return both result and warnings.
         Args:
+            input: Optional .typ file bytes or path to compile for this invocation.
             output (Optional[PathLike], optional): Path to save the compiled file.
             Allowed extensions are `.pdf`, `.svg` and `.png`
             format (Optional[str]): Output format.
