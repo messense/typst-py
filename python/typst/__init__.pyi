@@ -203,7 +203,7 @@ def compile(
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
         pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
         One or more PDF standard profiles to apply when exporting. Allowed values are `1.7`, `a-2b`, `a-3b`.
-        package_path: Optional[PathLike]: Path to load local packages from
+        package_path (Optional[PathLike]): Path to load local packages from.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
@@ -266,7 +266,7 @@ def compile_with_warnings(
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
         pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
         One or more PDF standard profiles to apply when exporting. Allowed values are `1.7`, `a-2b`, `a-3b`.
-        package_path: Optional[PathLike]: Path to load local packages from
+        package_path (Optional[PathLike]): Path to load local packages from.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
@@ -294,7 +294,7 @@ def query(
         font_paths (Union[Fonts, List[Input]]): Folders with fonts.
         ignore_system_fonts (bool): Ignore system fonts
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
-        package_path: Optional[PathLike]: Path to load local packages from
+        package_path (Optional[PathLike]): Path to load local packages from.
     Returns:
         str: Return the query result.
     """
