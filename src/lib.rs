@@ -651,9 +651,23 @@ fn _typst(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 fn extract_pdf_standard(obj: &Bound<'_, PyAny>) -> PyResult<typst_pdf::PdfStandard> {
     match &*obj.extract::<std::borrow::Cow<'_, str>>()? {
+        "1.4" => Ok(typst_pdf::PdfStandard::V_1_4),
+        "1.5" => Ok(typst_pdf::PdfStandard::V_1_5),
+        "1.6" => Ok(typst_pdf::PdfStandard::V_1_6),
         "1.7" => Ok(typst_pdf::PdfStandard::V_1_7),
+        "2.0" => Ok(typst_pdf::PdfStandard::V_2_0),
+        "a-1a" => Ok(typst_pdf::PdfStandard::A_1a),
+        "a-1b" => Ok(typst_pdf::PdfStandard::A_1b),
+        "a-2a" => Ok(typst_pdf::PdfStandard::A_2a),
         "a-2b" => Ok(typst_pdf::PdfStandard::A_2b),
+        "a-2u" => Ok(typst_pdf::PdfStandard::A_2u),
+        "a-3a" => Ok(typst_pdf::PdfStandard::A_3a),
         "a-3b" => Ok(typst_pdf::PdfStandard::A_3b),
+        "a-3u" => Ok(typst_pdf::PdfStandard::A_3u),
+        "a-4" => Ok(typst_pdf::PdfStandard::A_4),
+        "a-4e" => Ok(typst_pdf::PdfStandard::A_4e),
+        "a-4f" => Ok(typst_pdf::PdfStandard::A_4f),
+        "ua-1" => Ok(typst_pdf::PdfStandard::Ua_1),
         s => Err(PyValueError::new_err(format!("unknown pdf standard: {s}"))),
     }
 }
