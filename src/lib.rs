@@ -105,7 +105,7 @@ fn create_typst_diagnostic_details(
 ) -> TypstDiagnosticDetails {
     // Get the main error message by formatting all diagnostics
     let diagnostic = crate::compiler::format_diagnostics(world, errors, warnings)
-        .unwrap_or_else(|_| "Failed to format diagnostic message".to_string());
+        .unwrap_or_else(|e| format!("Failed to format diagnostic message: {:?}", e));
 
     // Extract structured information from the first error (most relevant)
     let primary_error = errors.first();

@@ -1,9 +1,9 @@
 use chrono::{Datelike, Timelike};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term::{self, termcolor};
-use ecow::{EcoString, eco_format};
+use ecow::eco_format;
 use typst::WorldExt;
-use typst::diag::{Severity, SourceDiagnostic, StrResult, Warned};
+use typst::diag::{At, Severity, SourceDiagnostic, SourceResult, StrResult, Warned};
 use typst::foundations::Datetime;
 use typst::layout::PagedDocument;
 use typst::syntax::{FileId, Lines, Span};
@@ -24,80 +24,70 @@ impl SystemWorld {
     ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
     {
         let normalized_format = format.unwrap_or("pdf").to_ascii_lowercase();
-        match normalized_format.as_str() {
-            "html" => self.compile_html_with_diagnostics(),
-            "pdf" | "png" | "svg" => self.compile_paginated_with_diagnostics(
-                normalized_format.as_str(),
-                ppi,
-                pdf_standards,
-            ),
-            _ => Err((vec![], vec![])),
+
+        let Warned { output, warnings } = match normalized_format.as_str() {
+            "html" => self.compile_and_export_html(),
+            "pdf" | "png" | "svg" => {
+                self.compile_and_export_paged(normalized_format.as_str(), ppi, pdf_standards)
+            }
+            _ => return Err((vec![], vec![])),
+        };
+
+        match output {
+            Ok(data) => Ok((data, warnings.to_vec())),
+            Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
         }
     }
 
-    /// Compile and export paginated formats (PDF, PNG, SVG)
-    fn compile_paginated_with_diagnostics(
+    /// Compile and export paginated formats (PDF, PNG, SVG) - similar to compile_and_export in typst-cli
+    fn compile_and_export_paged(
         &mut self,
         format: &str,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
-    {
-        let Warned { output, warnings } = typst::compile(self);
+    ) -> Warned<SourceResult<Vec<Vec<u8>>>> {
+        let Warned { output, warnings } = typst::compile::<PagedDocument>(self);
         // Evict comemo cache to limit memory usage after compilation
         comemo::evict(10);
 
-        match output {
-            Ok(document) => {
-                let result = match format {
-                    "pdf" => export_pdf(
-                        &document,
-                        self,
-                        typst_pdf::PdfStandards::new(pdf_standards)
-                            .map_err(|_e| (vec![], vec![]))?,
-                    )
-                    .map(|pdf| vec![pdf]),
-                    "png" => export_image(&document, ImageExportFormat::Png, ppi),
-                    "svg" => export_image(&document, ImageExportFormat::Svg, ppi),
-                    _ => return Err((vec![], vec![])),
-                };
-
-                result
-                    .map(|data| (data, warnings.to_vec()))
-                    .map_err(|_| (vec![], vec![]))
+        let result = output.and_then(|document| match format {
+            "pdf" => {
+                let standards = typst_pdf::PdfStandards::new(pdf_standards)
+                    .map_err(|e| eco_format!("PDF standards error: {:?}", e))
+                    .at(Span::detached())?;
+                export_pdf(&document, self, standards).map(|pdf| vec![pdf])
             }
-            Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
+            "png" => export_image(&document, ImageExportFormat::Png, ppi).at(Span::detached()),
+            "svg" => export_image(&document, ImageExportFormat::Svg, ppi).at(Span::detached()),
+            _ => unreachable!(),
+        });
+
+        Warned {
+            output: result,
+            warnings,
         }
     }
 
-    /// Compile and export HTML format
-    fn compile_html_with_diagnostics(
-        &mut self,
-    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
-    {
+    /// Compile and export HTML format - similar to compile_and_export in typst-cli
+    fn compile_and_export_html(&mut self) -> Warned<SourceResult<Vec<Vec<u8>>>> {
         let Warned { output, warnings } = typst::compile::<HtmlDocument>(self);
-
         // Evict comemo cache to limit memory usage after compilation
         comemo::evict(10);
 
-        match output {
-            Ok(document) => export_html(&document, self)
-                .map(|html| (vec![html], warnings.to_vec()))
-                .map_err(|_| (vec![], vec![])),
-            Err(errors) => Err((errors.to_vec(), warnings.to_vec())),
+        let result =
+            output.and_then(|document| export_html(&document, self).map(|html| vec![html]));
+
+        Warned {
+            output: result,
+            warnings,
         }
     }
 }
 
 /// Export to a html.
 #[inline]
-fn export_html(document: &HtmlDocument, world: &SystemWorld) -> StrResult<Vec<u8>> {
-    let buffer =
-        typst_html::html(document).map_err(|e| match format_diagnostics(world, &e, &[]) {
-            Ok(e) => EcoString::from(e),
-            Err(err) => eco_format!("failed to print diagnostics ({err})"),
-        })?;
-
+fn export_html(document: &HtmlDocument, _world: &SystemWorld) -> SourceResult<Vec<u8>> {
+    let buffer = typst_html::html(document)?;
     Ok(buffer.into())
 }
 
@@ -105,9 +95,9 @@ fn export_html(document: &HtmlDocument, world: &SystemWorld) -> StrResult<Vec<u8
 #[inline]
 fn export_pdf(
     document: &PagedDocument,
-    world: &SystemWorld,
+    _world: &SystemWorld,
     standards: typst_pdf::PdfStandards,
-) -> StrResult<Vec<u8>> {
+) -> SourceResult<Vec<u8>> {
     let buffer = typst_pdf::pdf(
         document,
         &typst_pdf::PdfOptions {
@@ -116,11 +106,7 @@ fn export_pdf(
             standards,
             ..Default::default()
         },
-    )
-    .map_err(|e| match format_diagnostics(world, &e, &[]) {
-        Ok(e) => EcoString::from(e),
-        Err(err) => eco_format!("failed to print diagnostics ({err})"),
-    })?;
+    )?;
     Ok(buffer)
 }
 
