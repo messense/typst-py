@@ -14,6 +14,7 @@ use world::SystemWorld;
 mod compiler;
 mod download;
 mod query;
+mod syntax;
 mod world;
 
 // Create custom exceptions that inherit from RuntimeError
@@ -696,6 +697,85 @@ mod _typst {
 
     #[pymodule_export]
     use super::{compile, compile_with_warnings, py_query as query};
+
+    #[pyo3::pymodule(gil_used = false)]
+    mod syntax {
+        #[pymodule_export]
+        use crate::syntax::{
+            PyArray as Array,
+            PyAuto as Auto,
+            PyBinary as Binary,
+            PyBool as Bool,
+            PyClosure as Closure,
+            // Code structures
+            PyCodeBlock as CodeBlock,
+            PyConditional as Conditional,
+            PyContentBlock as ContentBlock,
+            PyContextual as Contextual,
+            PyDestructAssign as DestructAssign,
+            PyDict as Dict,
+            PyEmph as Emph,
+            PyEnumItem as EnumItem,
+            PyEquation as Equation,
+            PyEscape as Escape,
+            PyExpr as Expr,
+            PyFieldAccess as FieldAccess,
+            PyFloat as Float,
+            PyForLoop as ForLoop,
+            PyFuncCall as FuncCall,
+            PyFuncReturn as FuncReturn,
+            // Markup elements
+            PyHeading as Heading,
+            // Literals
+            PyIdent as Ident,
+            PyInt as Int,
+            PyLabel as Label,
+            PyLetBinding as LetBinding,
+            PyLinebreak as Linebreak,
+            PyLink as Link,
+            PyListItem as ListItem,
+            PyLoopBreak as LoopBreak,
+            PyLoopContinue as LoopContinue,
+            PyMarkup as Markup,
+            // Math expressions
+            PyMath as Math,
+            PyMathAlignPoint as MathAlignPoint,
+            PyMathAttach as MathAttach,
+            PyMathDelimited as MathDelimited,
+            PyMathFrac as MathFrac,
+            PyMathIdent as MathIdent,
+            PyMathPrimes as MathPrimes,
+            PyMathRoot as MathRoot,
+            PyMathShorthand as MathShorthand,
+            PyMathText as MathText,
+            PyModuleImport as ModuleImport,
+            PyModuleInclude as ModuleInclude,
+            PyNone as None_,
+            PyNumeric as Numeric,
+            PyParbreak as Parbreak,
+            PyParenthesized as Parenthesized,
+            PyRaw as Raw,
+            PyReference as Ref,
+            PySetRule as SetRule,
+            PyShorthand as Shorthand,
+            PyShowRule as ShowRule,
+            PySmartQuote as SmartQuote,
+            PySpace as Space,
+            // Core types
+            PySpan as Span,
+            PyStr as Str,
+            PyStrong as Strong,
+            PySyntaxKind as SyntaxKind,
+            PyTermItem as TermItem,
+            PyText as Text,
+            // Operations
+            PyUnary as Unary,
+            PyWhileLoop as WhileLoop,
+            SyntaxNode,
+            // Functions
+            parse,
+        };
+    }
 
     #[pymodule_init]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
