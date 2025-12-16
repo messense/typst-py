@@ -151,8 +151,9 @@ fn create_typst_warning_details_from_diagnostics(
         .map(|warning| {
             // Format just this warning
             let message = warning.message.to_string();
-            let diagnostic = crate::compiler::format_diagnostics(world, &[], &[warning.clone()])
-                .unwrap_or_else(|_| message.clone());
+            let diagnostic =
+                crate::compiler::format_diagnostics(world, &[], std::slice::from_ref(warning))
+                    .unwrap_or_else(|_| message.clone());
 
             // Extract hints
             let hints = warning
@@ -342,7 +343,7 @@ impl Compiler {
             path.canonicalize()?
                 .parent()
                 .map(Into::into)
-                .unwrap_or_else(|| PathBuf::new())
+                .unwrap_or_else(PathBuf::new)
         } else {
             env::current_dir()
                 .and_then(|cwd| cwd.canonicalize())
@@ -637,16 +638,20 @@ fn py_query(
 
 /// Python binding to typst
 #[pymodule(gil_used = false)]
-fn _typst(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
-    m.add_class::<Fonts>()?;
-    m.add_class::<Compiler>()?;
-    m.add("TypstError", py.get_type::<TypstError>())?;
-    m.add("TypstWarning", py.get_type::<TypstWarning>())?;
-    m.add_function(wrap_pyfunction!(compile, m)?)?;
-    m.add_function(wrap_pyfunction!(compile_with_warnings, m)?)?;
-    m.add_function(wrap_pyfunction!(py_query, m)?)?;
-    Ok(())
+mod _typst {
+    use pyo3::prelude::*;
+
+    #[pymodule_export]
+    use super::{Compiler, Fonts, TypstError, TypstWarning};
+
+    #[pymodule_export]
+    use super::{compile, compile_with_warnings, py_query as query};
+
+    #[pymodule_init]
+    fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
+        m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+        Ok(())
+    }
 }
 
 fn extract_pdf_standard(obj: &Bound<'_, PyAny>) -> PyResult<typst_pdf::PdfStandard> {

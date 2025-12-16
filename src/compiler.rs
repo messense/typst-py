@@ -14,6 +14,9 @@ use crate::world::SystemWorld;
 type CodespanResult<T> = Result<T, CodespanError>;
 type CodespanError = codespan_reporting::files::Error;
 
+type CompileSuccess = (Vec<Vec<u8>>, Vec<SourceDiagnostic>);
+type CompileError = (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>);
+
 impl SystemWorld {
     /// Compile and return structured diagnostics for error handling
     pub fn compile_with_diagnostics(
@@ -21,8 +24,7 @@ impl SystemWorld {
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
-    ) -> Result<(Vec<Vec<u8>>, Vec<SourceDiagnostic>), (Vec<SourceDiagnostic>, Vec<SourceDiagnostic>)>
-    {
+    ) -> Result<CompileSuccess, CompileError> {
         let normalized_format = format.unwrap_or("pdf").to_ascii_lowercase();
 
         let Warned { output, warnings } = match normalized_format.as_str() {
