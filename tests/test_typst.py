@@ -161,6 +161,99 @@ def test_compiler_with_sys_inputs(hello_typ_path):
     assert result.startswith(b"%PDF-")
 
 
+def test_compiler_compile_sys_inputs_ellipsis_keeps_existing():
+    """Test that Ellipsis (default) keeps existing sys_inputs."""
+    source = b'#sys.inputs.at("name", default: "empty")'
+    compiler = typst.Compiler(source, sys_inputs={"name": "initial"})
+
+    # First compile should use initial sys_inputs
+    result1 = compiler.compile(input=source, format="pdf")
+    assert isinstance(result1, bytes)
+
+    # Second compile with default (Ellipsis) should keep the same sys_inputs
+    result2 = compiler.compile(input=source, format="pdf")
+    assert isinstance(result2, bytes)
+
+    # Results should be identical since sys_inputs didn't change
+    assert result1 == result2
+
+
+def test_compiler_compile_sys_inputs_none_clears():
+    """Test that None clears sys_inputs."""
+    source = b'#sys.inputs.at("name", default: "empty")'
+    compiler = typst.Compiler(source, sys_inputs={"name": "initial"})
+
+    # First compile with initial sys_inputs
+    result_with_inputs = compiler.compile(input=source, format="pdf")
+
+    # Compile with None should clear sys_inputs
+    result_cleared = compiler.compile(input=source, format="pdf", sys_inputs=None)
+
+    # Results should differ since sys_inputs changed
+    assert result_with_inputs != result_cleared
+
+
+def test_compiler_compile_sys_inputs_dict_updates():
+    """Test that passing a dict updates sys_inputs."""
+    source = b'#sys.inputs.at("name", default: "empty")'
+    compiler = typst.Compiler(source, sys_inputs={"name": "initial"})
+
+    # First compile with initial sys_inputs
+    result_initial = compiler.compile(input=source, format="pdf")
+
+    # Compile with new sys_inputs dict
+    result_updated = compiler.compile(input=source, format="pdf", sys_inputs={"name": "updated"})
+
+    # Results should differ since sys_inputs changed
+    assert result_initial != result_updated
+
+
+def test_compiler_compile_sys_inputs_persists_after_update():
+    """Test that updated sys_inputs persists for subsequent compiles."""
+    source = b'#sys.inputs.at("name", default: "empty")'
+    compiler = typst.Compiler(source, sys_inputs={"name": "initial"})
+
+    # Update sys_inputs
+    result_updated = compiler.compile(input=source, format="pdf", sys_inputs={"name": "updated"})
+
+    # Next compile with Ellipsis (default) should keep updated value
+    result_persisted = compiler.compile(input=source, format="pdf")
+
+    # Results should be identical
+    assert result_updated == result_persisted
+
+
+def test_compiler_compile_sys_inputs_none_persists():
+    """Test that cleared sys_inputs persists for subsequent compiles."""
+    source = b'#sys.inputs.at("name", default: "empty")'
+    compiler = typst.Compiler(source, sys_inputs={"name": "initial"})
+
+    # Clear sys_inputs
+    result_cleared = compiler.compile(input=source, format="pdf", sys_inputs=None)
+
+    # Next compile with Ellipsis (default) should remain cleared
+    result_persisted = compiler.compile(input=source, format="pdf")
+
+    # Results should be identical
+    assert result_cleared == result_persisted
+
+
+def test_compiler_compile_with_warnings_sys_inputs():
+    """Test sys_inputs works with compile_with_warnings."""
+    source = b'#sys.inputs.at("name", default: "empty")'
+    compiler = typst.Compiler(source, sys_inputs={"name": "initial"})
+
+    # Compile with warnings and new sys_inputs
+    result, warnings = compiler.compile_with_warnings(input=source, format="pdf", sys_inputs={"name": "updated"})
+    assert isinstance(result, bytes)
+    assert isinstance(warnings, list)
+
+    # Compile with warnings and None (clear)
+    result_cleared, warnings = compiler.compile_with_warnings(input=source, format="pdf", sys_inputs=None)
+    assert isinstance(result_cleared, bytes)
+    assert result != result_cleared
+
+
 def test_compiler_with_warnings(hello_typ_path):
     compiler = typst.Compiler(hello_typ_path)
     result, warnings = compiler.compile_with_warnings(format="pdf")

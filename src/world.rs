@@ -108,6 +108,16 @@ impl SystemWorld {
         self.now.take();
     }
 
+    /// Update the sys_inputs for the world.
+    pub fn set_inputs(&mut self, inputs: Dict) {
+        self.library = LazyHash::new(
+            Library::builder()
+                .with_features(vec![typst::Feature::Html].into_iter().collect())
+                .with_inputs(inputs)
+                .build(),
+        );
+    }
+
     /// Access the canonical slot for the given file id.
     fn slot<F, T>(&self, id: FileId, f: F) -> T
     where
