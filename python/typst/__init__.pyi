@@ -1,4 +1,5 @@
 import pathlib
+from types import EllipsisType
 from typing import List, Optional, TypeVar, overload, Dict, Union, Literal, Tuple
 
 Input = TypeVar("Input", str, pathlib.Path, bytes)
@@ -94,6 +95,7 @@ class Compiler:
         output: Optional[Input] = None,
         format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
+        sys_inputs: Union[EllipsisType, None, Dict[str, str]] = ...,
     ) -> Optional[Union[bytes, List[bytes]]]:
         """Compile a Typst project.
         Args:
@@ -103,6 +105,10 @@ class Compiler:
             format (Optional[str]): Output format.
             Allowed values are `pdf`, `svg` and `png`.
             ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
+            sys_inputs: string key-value pairs to be passed to the document via sys.inputs.
+                - Ellipsis (default): Keep existing sys_inputs from initialization or previous compile.
+                - None: Clear sys_inputs (equivalent to empty dictionary).
+                - Dict[str, str]: Use the provided dictionary as sys_inputs.
         Returns:
             Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
         """
@@ -113,6 +119,7 @@ class Compiler:
         output: Optional[Input] = None,
         format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
+        sys_inputs: Union[EllipsisType, None, Dict[str, str]] = ...,
     ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
         """Compile a Typst project and return both result and warnings.
         Args:
@@ -122,6 +129,10 @@ class Compiler:
             format (Optional[str]): Output format.
             Allowed values are `pdf`, `svg` and `png`.
             ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
+            sys_inputs: string key-value pairs to be passed to the document via sys.inputs.
+                - Ellipsis (default): Keep existing sys_inputs from initialization or previous compile.
+                - None: Clear sys_inputs (equivalent to empty dictionary).
+                - Dict[str, str]: Use the provided dictionary as sys_inputs.
         Returns:
             Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]: Return a tuple of (compiled_data, warnings).
             The first element is the compiled file as `bytes` if output is `None`, otherwise `None`.

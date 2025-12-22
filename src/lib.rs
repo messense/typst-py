@@ -185,6 +185,32 @@ pub enum Input {
     Bytes(Vec<u8>),
 }
 
+/// Enum to represent sys_inputs parameter in compile methods:
+/// - Ellipsis: keep existing sys_inputs (default)
+/// - None: clear sys_inputs (empty dict)
+/// - Dict: use the provided dictionary
+#[derive(Debug, Clone)]
+pub enum SysInputsOption {
+    Keep,                          // Ellipsis - keep existing
+    Clear,                         // None - clear to empty
+    Set(HashMap<String, String>),  // dict - use provided
+}
+
+/// Extract sys_inputs option from Python object
+fn extract_sys_inputs_option(obj: &Bound<'_, PyAny>) -> PyResult<SysInputsOption> {
+    // Check for Ellipsis (keep existing)
+    if obj.is(&obj.py().Ellipsis()) {
+        return Ok(SysInputsOption::Keep);
+    }
+    // Check for None (clear)
+    if obj.is_none() {
+        return Ok(SysInputsOption::Clear);
+    }
+    // Otherwise, try to extract as dict
+    let dict: HashMap<String, String> = obj.extract()?;
+    Ok(SysInputsOption::Set(dict))
+}
+
 #[pyclass(module = "typst._typst")]
 #[derive(Clone)]
 pub struct Fonts(Arc<typst_kit::fonts::Fonts>);
@@ -231,6 +257,26 @@ impl Compiler {
                 .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         }
         Ok(())
+    }
+
+    fn apply_sys_inputs(&mut self, sys_inputs: SysInputsOption) {
+        match sys_inputs {
+            SysInputsOption::Keep => {
+                // Do nothing, keep existing sys_inputs
+            }
+            SysInputsOption::Clear => {
+                // Clear to empty dict
+                self.world.set_inputs(Dict::default());
+            }
+            SysInputsOption::Set(inputs) => {
+                // Set the provided inputs
+                self.world.set_inputs(Dict::from_iter(
+                    inputs
+                        .into_iter()
+                        .map(|(k, v)| (k.into(), Value::Str(v.into()))),
+                ));
+            }
+        }
     }
 
     fn compile(
@@ -369,7 +415,7 @@ impl Compiler {
     }
 
     /// Compile a typst file to PDF
-    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, pdf_standards = Vec::new()))]
+    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new()))]
     fn py_compile(
         &mut self,
         py: Python<'_>,
@@ -377,9 +423,11 @@ impl Compiler {
         output: Option<PathBuf>,
         format: Option<&str>,
         ppi: Option<f32>,
+        #[pyo3(from_py_with = extract_sys_inputs_option)] sys_inputs: SysInputsOption,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     ) -> PyResult<Py<PyAny>> {
         self.apply_input(input)?;
+        self.apply_sys_inputs(sys_inputs);
         if let Some(output) = output {
             // if format is None and output with postfix ".pdf", ".png", "html", and ".svg" is
             // provided, use the postfix as format
@@ -442,7 +490,7 @@ impl Compiler {
     }
 
     /// Compile a typst file and return both result and warnings
-    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, pdf_standards = Vec::new()))]
+    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new()))]
     fn py_compile_with_warnings(
         &mut self,
         py: Python<'_>,
@@ -450,9 +498,11 @@ impl Compiler {
         output: Option<PathBuf>,
         format: Option<&str>,
         ppi: Option<f32>,
+        #[pyo3(from_py_with = extract_sys_inputs_option)] sys_inputs: SysInputsOption,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     ) -> PyResult<Py<PyAny>> {
         self.apply_input(input)?;
+        self.apply_sys_inputs(sys_inputs);
         let result = py
             .detach(|| self.compile_with_warnings(format, ppi, &pdf_standards))
             .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
@@ -553,7 +603,7 @@ fn compile(
         sys_inputs,
         package_path,
     )?;
-    compiler.py_compile(py, None, output, format, ppi, pdf_standards)
+    compiler.py_compile(py, None, output, format, ppi, SysInputsOption::Keep, pdf_standards)
 }
 
 /// Compile a typst file and return both result and warnings
@@ -591,7 +641,7 @@ fn compile_with_warnings(
         sys_inputs,
         package_path,
     )?;
-    compiler.py_compile_with_warnings(py, None, output, format, ppi, pdf_standards)
+    compiler.py_compile_with_warnings(py, None, output, format, ppi, SysInputsOption::Keep, pdf_standards)
 }
 
 /// Query a typst document
