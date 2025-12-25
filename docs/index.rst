@@ -1,0 +1,79 @@
+typst
+=====
+
+Python bindings to the `typst <https://github.com/typst/typst>`,
+a new markup-based typesetting system that is powerful and easy to learn.
+
+Installation
+============
+
+.. code-block:: bash
+
+   pip install typst
+
+Usage
+=====
+
+.. code-block:: python
+
+    import typst
+
+
+    # Compile `hello.typ` to PDF and save as `hello.pdf`
+    typst.compile("hello.typ", output="hello.pdf")
+
+    # Compile `hello.typ` to PNG and save as `hello.png`
+    typst.compile("hello.typ", output="hello.png", format="png", ppi=144.0)
+
+    # Or pass `hello.typ` content as bytes
+    with open("hello.typ", "rb") as f:
+        typst.compile(f.read(), output="hello.pdf")
+
+    # Or return PDF content as bytes
+    pdf_bytes = typst.compile("hello.typ")
+
+    # Also for svg
+    svg_bytes = typst.compile("hello.typ", format="svg")
+
+    # For multi-page export (the template is the same as the typst cli)
+    images = typst.compile("hello.typ", output="hello{n}.png", format="png")
+
+    # Or use Compiler class to avoid reinitialization
+    compiler = typst.Compiler()
+    compiler.compile(input="hello.typ", format="png", ppi=144.0)
+
+    # Query something
+    import json
+
+    values = json.loads(typst.query("hello.typ", "<note>", field="value", one=True))
+
+Passing values
+---------------
+
+You can pass values to the compiled Typst file with the `sys_inputs` argument. For example:
+
+.. code-block:: python
+
+    import json
+    import typst
+
+    persons = [{"name": "John", "age": 35}, {"name": "Xoliswa", "age": 45}]
+    sys_inputs = {"persons": json.dumps(persons)}
+
+    typst.compile(input="main.typ", output="ages.pdf", sys_inputs=sys_inputs)
+
+The following example shows how the passed data can be used in a Typst file.
+
+.. code-block:: typst
+
+    #let persons = json(bytes(sys.inputs.persons))
+
+    #for person in persons [
+    #person.name is #person.age years old. \
+    ]
+
+API reference
+=============
+
+.. automodule:: typst
+   :members:

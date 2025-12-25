@@ -1,0 +1,19 @@
+# https://docs.readthedocs.io/en/stable/config-file/v2.html#supported-settings
+
+version: 2
+
+sphinx:
+  builder: html
+  configuration: docs/conf.py
+
+build:
+  os: "ubuntu-lts-latest"
+  tools:
+    python: "3.14"
+    rust: "latest"
+
+python:
+  install:
+    - requirements: docs/requirements.txt
+    - method: pip
+      path: .
