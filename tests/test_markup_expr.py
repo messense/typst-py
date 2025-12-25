@@ -98,6 +98,3 @@ This is a paragraph with *bold* and _italic_ text.
     assert "Text" in variants
     assert "List" in variants or "ListItem" in variants
     assert "LetBinding" in variants
-
-    print(f"\nFound {len(exprs)} expressions")
-    print(f"Variants: {set(variants)}")
