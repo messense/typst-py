@@ -51,14 +51,14 @@ def test_compile_to_png_bytes(hello_typ_path):
 def test_compile_from_string_content():
     # String content needs to be passed as bytes for direct compilation
     content = "= Hello\nThis is a test document."
-    result = typst.compile(content.encode('utf-8'), format="pdf")
+    result = typst.compile(content.encode("utf-8"), format="pdf")
     assert isinstance(result, bytes)
     assert result.startswith(b"%PDF-")
 
 
 def test_compile_from_bytes_content():
     content = "= Hello\nThis is a test document."
-    content_bytes = content.encode('utf-8')
+    content_bytes = content.encode("utf-8")
     result = typst.compile(content_bytes, format="pdf")
     assert isinstance(result, bytes)
     assert result.startswith(b"%PDF-")
@@ -284,7 +284,9 @@ def test_query_with_field(hello_typ_path):
 
 def test_query_one_element(hello_typ_path):
     # Query for a specific heading that should be unique
-    result = typst.query(hello_typ_path, "heading.where(level: 1)", one=True, format="json")
+    result = typst.query(
+        hello_typ_path, "heading.where(level: 1)", one=True, format="json"
+    )
     data = json.loads(result)
     assert not isinstance(data, list)
 
@@ -333,7 +335,7 @@ def test_compile_with_fonts_object():
 
 # Error handling tests
 def test_invalid_syntax_raises_typst_error():
-    broken_content  = b"#invalid syntax here"
+    broken_content = b"#invalid syntax here"
 
     with pytest.raises(typst.TypstError) as exc_info:
         typst.compile(broken_content, format="pdf")
@@ -403,7 +405,7 @@ def test_all_formats(format_name, use_file, tmp_path):
 def test_unsupported_format():
     # Test with an invalid format parameter
     simple_content = "= Hello\nThis is a simple document."
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write(simple_content)
         temp_path = pathlib.Path(f.name)
 
@@ -418,7 +420,7 @@ def test_unsupported_format():
 
 # Edge cases tests
 def test_empty_document():
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write("")
         temp_path = pathlib.Path(f.name)
 
@@ -432,7 +434,9 @@ def test_empty_document():
 
 def test_unicode_content():
     unicode_content = "= 测试\n这是一个中文文档 🎉"
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False, encoding='utf-8') as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".typ", delete=False, encoding="utf-8"
+    ) as f:
         f.write(unicode_content)
         temp_path = pathlib.Path(f.name)
 
@@ -445,8 +449,10 @@ def test_unicode_content():
 
 
 def test_large_document():
-    large_content = "= Large Document\n" + "This is a paragraph.\n" * 100  # Reduced size
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    large_content = (
+        "= Large Document\n" + "This is a paragraph.\n" * 100
+    )  # Reduced size
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write(large_content)
         temp_path = pathlib.Path(f.name)
 
@@ -464,7 +470,7 @@ $ sum_(i=1)^n i = (n(n+1))/2 $
 $ integral_0^infinity e^(-x^2) dif x = sqrt(pi)/2 $
 $ lim_(x->0) (sin x)/x = 1 $
 """
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.typ', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".typ", delete=False) as f:
         f.write(math_content)
         temp_path = pathlib.Path(f.name)
 
@@ -521,7 +527,7 @@ def test_compile_with_all_options(hello_typ_path):
             output=output_path,
             format="pdf",
             font_paths=fonts,
-            sys_inputs={"test": "value"}
+            sys_inputs={"test": "value"},
         )
         assert result is None
         assert output_path.exists()
