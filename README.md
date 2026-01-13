@@ -2,6 +2,7 @@
 
 ![CI](https://github.com/messense/typst-py/workflows/CI/badge.svg)
 [![PyPI](https://img.shields.io/pypi/v/typst.svg)](https://pypi.org/project/typst)
+[![Documentation Status](https://readthedocs.org/projects/typst-py/badge/?version=latest)](https://typst-py.readthedocs.io/en/latest/?badge=latest)
 
 Python binding to [typst](https://github.com/typst/typst),
 a new markup-based typesetting system that is powerful and easy to learn.
