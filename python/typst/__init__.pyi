@@ -56,6 +56,16 @@ class TypstWarning(UserWarning):
         trace: Optional[List[str]] = None,
     ) -> None: ...
 
+class FontInfo:
+    """Immutable information about a single font variant."""
+
+    family: str
+    style: str
+    weight: int
+    stretch: float
+    path: Optional[str]
+    index: int
+
 class Fonts:
     def __init__(
         self,
@@ -63,6 +73,8 @@ class Fonts:
         include_embedded_fonts: bool = True,
         font_paths: List[Input] = [],
     ) -> None: ...
+    def fonts(self) -> List["FontInfo"]: ...
+    def families(self) -> List[str]: ...
 
 class Compiler:
     def __init__(

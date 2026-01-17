@@ -9,6 +9,7 @@ use query::{QueryCommand, SerializationFormat, query as typst_query};
 use std::collections::HashMap;
 use typst::diag::SourceDiagnostic;
 use typst::foundations::{Dict, Value};
+use typst::text::FontStyle;
 use world::SystemWorld;
 
 mod compiler;
@@ -191,15 +192,15 @@ pub enum Input {
 /// - Dict: use the provided dictionary
 #[derive(Debug, Clone)]
 pub enum SysInputsOption {
-    Keep,                          // Ellipsis - keep existing
-    Clear,                         // None - clear to empty
-    Set(HashMap<String, String>),  // dict - use provided
+    Keep,                         // Ellipsis - keep existing
+    Clear,                        // None - clear to empty
+    Set(HashMap<String, String>), // dict - use provided
 }
 
 /// Extract sys_inputs option from Python object
 fn extract_sys_inputs_option(obj: &Bound<'_, PyAny>) -> PyResult<SysInputsOption> {
     // Check for Ellipsis (keep existing)
-    if obj.is(&obj.py().Ellipsis()) {
+    if obj.is(obj.py().Ellipsis()) {
         return Ok(SysInputsOption::Keep);
     }
     // Check for None (clear)
@@ -211,9 +212,60 @@ fn extract_sys_inputs_option(obj: &Bound<'_, PyAny>) -> PyResult<SysInputsOption
     Ok(SysInputsOption::Set(dict))
 }
 
+/// Immutable information about a single font variant
+#[pyclass(module = "typst._typst", frozen)]
+#[derive(Clone)]
+pub struct FontInfo {
+    /// The font family name
+    #[pyo3(get)]
+    family: String,
+    /// The font style: "normal", "italic", or "oblique"
+    #[pyo3(get)]
+    style: String,
+    /// The font weight (100-900)
+    #[pyo3(get)]
+    weight: u16,
+    /// The font stretch ratio (0.5-2.0)
+    #[pyo3(get)]
+    stretch: f64,
+    /// The file path of the font, or None for embedded fonts
+    #[pyo3(get)]
+    path: Option<String>,
+    /// The index of the font in its collection (0 if not a collection)
+    #[pyo3(get)]
+    index: u32,
+}
+
+#[pymethods]
+impl FontInfo {
+    fn __repr__(&self) -> String {
+        if let Some(path) = &self.path {
+            format!(
+                "FontInfo(family={:?}, style={:?}, weight={}, stretch={:.2}, path={:?}, index={})",
+                self.family, self.style, self.weight, self.stretch, path, self.index
+            )
+        } else {
+            format!(
+                "FontInfo(family={:?}, style={:?}, weight={}, stretch={:.2}, path=None, index={})",
+                self.family, self.style, self.weight, self.stretch, self.index
+            )
+        }
+    }
+}
+
 #[pyclass(module = "typst._typst")]
 #[derive(Clone)]
 pub struct Fonts(Arc<typst_kit::fonts::Fonts>);
+
+impl Fonts {
+    fn font_style_to_string(style: FontStyle) -> &'static str {
+        match style {
+            FontStyle::Normal => "normal",
+            FontStyle::Italic => "italic",
+            FontStyle::Oblique => "oblique",
+        }
+    }
+}
 
 #[pymethods]
 impl Fonts {
@@ -234,6 +286,46 @@ impl Fonts {
             .include_embedded_fonts(include_embedded_fonts);
         let fonts = searcher.search_with(&font_paths);
         Self(Arc::new(fonts))
+    }
+
+    /// Return a list of all font variants found
+    ///
+    /// Returns:
+    ///     List[FontInfo]: A list of FontInfo objects for each font variant
+    pub fn fonts(&self) -> Vec<FontInfo> {
+        let book = &self.0.book;
+        let font_slots = &self.0.fonts;
+
+        let mut result = Vec::new();
+        for (idx, slot) in font_slots.iter().enumerate() {
+            if let Some(info) = book.info(idx) {
+                let path = slot
+                    .path()
+                    .map(|p: &std::path::Path| p.to_string_lossy().into_owned());
+
+                result.push(FontInfo {
+                    family: info.family.clone(),
+                    style: Self::font_style_to_string(info.variant.style).to_string(),
+                    weight: info.variant.weight.to_number(),
+                    stretch: info.variant.stretch.to_ratio().get(),
+                    path,
+                    index: slot.index(),
+                });
+            }
+        }
+        result
+    }
+
+    /// Return a sorted list of unique font family names
+    ///
+    /// Returns:
+    ///     List[str]: A sorted list of unique font family names
+    pub fn families(&self) -> Vec<String> {
+        self.0
+            .book
+            .families()
+            .map(|(family, _)| family.to_string())
+            .collect()
     }
 }
 
@@ -415,6 +507,7 @@ impl Compiler {
     }
 
     /// Compile a typst file to PDF
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new()))]
     fn py_compile(
         &mut self,
@@ -490,6 +583,7 @@ impl Compiler {
     }
 
     /// Compile a typst file and return both result and warnings
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new()))]
     fn py_compile_with_warnings(
         &mut self,
@@ -603,7 +697,15 @@ fn compile(
         sys_inputs,
         package_path,
     )?;
-    compiler.py_compile(py, None, output, format, ppi, SysInputsOption::Keep, pdf_standards)
+    compiler.py_compile(
+        py,
+        None,
+        output,
+        format,
+        ppi,
+        SysInputsOption::Keep,
+        pdf_standards,
+    )
 }
 
 /// Compile a typst file and return both result and warnings
@@ -641,7 +743,15 @@ fn compile_with_warnings(
         sys_inputs,
         package_path,
     )?;
-    compiler.py_compile_with_warnings(py, None, output, format, ppi, SysInputsOption::Keep, pdf_standards)
+    compiler.py_compile_with_warnings(
+        py,
+        None,
+        output,
+        format,
+        ppi,
+        SysInputsOption::Keep,
+        pdf_standards,
+    )
 }
 
 /// Query a typst document
@@ -692,7 +802,7 @@ mod _typst {
     use pyo3::prelude::*;
 
     #[pymodule_export]
-    use super::{Compiler, Fonts, TypstError, TypstWarning};
+    use super::{Compiler, FontInfo, Fonts, TypstError, TypstWarning};
 
     #[pymodule_export]
     use super::{compile, compile_with_warnings, py_query as query};
