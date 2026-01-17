@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.14"
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         env:
@@ -58,7 +58,7 @@ jobs:
           CFLAGS_s390x_unknown_linux_gnu: "-march=z10"
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist -i python3.13t
+          args: --release --out dist -i python3.14t
           sccache: "true"
           manylinux: ${{ matrix.platform.manylinux || 'auto' }}
           before-script-linux: |
@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.14"
           architecture: ${{ matrix.target }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Build wheels
@@ -91,7 +91,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist -i python3.13t
+          args: --release --out dist -i python3.14t
           sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -108,7 +108,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.14"
       - uses: dtolnay/rust-toolchain@stable
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -120,7 +120,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist -i python3.13t
+          args: --release --out dist -i python3.14t
           sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
