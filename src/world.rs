@@ -28,6 +28,8 @@ pub struct SystemWorld {
     main: FileId,
     /// Reusable file id for in-memory (bytes) inputs.
     bytes_main: Option<FileId>,
+    /// Virtual files for multi-file inputs (maps file path to bytes).
+    virtual_files: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     /// Typst's standard library.
     library: LazyHash<Library>,
     /// Metadata about discovered fonts.
@@ -57,10 +59,38 @@ impl World for SystemWorld {
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
+        // Check if this is a virtual file first
+        let vpath_str = id.vpath().as_rootless_path().to_str();
+        if let Some(path_str) = vpath_str {
+            // Try to extract just the filename from the virtual path
+            if let Some(filename) = path_str.strip_prefix("virtual/") {
+                let virtual_files = self.virtual_files.lock().unwrap();
+                if let Some(bytes) = virtual_files.get(filename) {
+                    // Found a virtual file, create a source from it
+                    return Ok(Source::new(id, decode_utf8(bytes)?.to_string()));
+                }
+            }
+        }
+        
+        // Fall back to regular file loading
         self.slot(id, |slot| slot.source(&self.root, &self.package_storage))
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
+        // Check if this is a virtual file first
+        let vpath_str = id.vpath().as_rootless_path().to_str();
+        if let Some(path_str) = vpath_str {
+            // Try to extract just the filename from the virtual path
+            if let Some(filename) = path_str.strip_prefix("virtual/") {
+                let virtual_files = self.virtual_files.lock().unwrap();
+                if let Some(bytes) = virtual_files.get(filename) {
+                    // Found a virtual file, return the bytes
+                    return Ok(Bytes::new(bytes.clone()));
+                }
+            }
+        }
+        
+        // Fall back to regular file loading
         self.slot(id, |slot| slot.file(&self.root, &self.package_storage))
     }
 
@@ -198,6 +228,8 @@ impl SystemWorldBuilder {
 
         let mut slots = FxHashMap::default();
         let mut bytes_main = None;
+        let mut virtual_files_map = HashMap::new();
+        
         let main = match self.input {
             Input::Path(path) => {
                 // Resolve the virtual path of the main file within the project root.
@@ -236,39 +268,32 @@ impl SystemWorldBuilder {
                     files.keys().next().ok_or("Files input cannot be empty")?
                 };
                 
-                // Second pass: create file slots for all files
-                // Use a common virtual directory for all files
+                // Second pass: create file slots and populate virtual_files
                 for (filename, file_data) in files.iter() {
+                    let bytes = match file_data {
+                        FileData::Bytes(b) => b.clone(),
+                        FileData::Path(path) => {
+                            let path = path
+                                .canonicalize()
+                                .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
+                            std::fs::read(&path)
+                                .map_err(|err| format!("Failed to read file {}: {}", filename, err))?
+                        }
+                    };
+                    
+                    // Store in virtual_files map for lookup
+                    virtual_files_map.insert(filename.clone(), bytes.clone());
+                    
                     // Create virtual paths in a common directory
                     let vpath = VirtualPath::new(&format!("/virtual/{}", filename));
                     let file_id = FileId::new_fake(vpath);
                     
-                    match file_data {
-                        FileData::Bytes(bytes) => {
-                            let mut file_slot = FileSlot::new(file_id);
-                            file_slot
-                                .source
-                                .init(Source::new(file_id, decode_utf8(bytes)?.to_string()));
-                            file_slot.file.init(Bytes::new(bytes.clone()));
-                            slots.insert(file_id, file_slot);
-                        }
-                        FileData::Path(path) => {
-                            // For path-based files in the dict, read them and create slots
-                            let path = path
-                                .canonicalize()
-                                .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
-                            
-                            let bytes = std::fs::read(&path)
-                                .map_err(|err| format!("Failed to read file {}: {}", filename, err))?;
-                            
-                            let mut file_slot = FileSlot::new(file_id);
-                            file_slot
-                                .source
-                                .init(Source::new(file_id, decode_utf8(&bytes)?.to_string()));
-                            file_slot.file.init(Bytes::new(bytes));
-                            slots.insert(file_id, file_slot);
-                        }
-                    }
+                    let mut file_slot = FileSlot::new(file_id);
+                    file_slot
+                        .source
+                        .init(Source::new(file_id, decode_utf8(&bytes)?.to_string()));
+                    file_slot.file.init(Bytes::new(bytes));
+                    slots.insert(file_id, file_slot);
                     
                     if filename == main_filename {
                         main_file_id = Some(file_id);
@@ -283,6 +308,7 @@ impl SystemWorldBuilder {
             root: self.root,
             main,
             bytes_main,
+            virtual_files: Arc::new(Mutex::new(virtual_files_map)),
             library: LazyHash::new(
                 Library::builder()
                     .with_features(vec![typst::Feature::Html].into_iter().collect())
@@ -401,8 +427,9 @@ impl SystemWorld {
             return Err("Files input cannot be empty".into());
         }
         
-        // Clear existing file slots
+        // Clear existing file slots and virtual files
         self.slots.lock().unwrap().clear();
+        self.virtual_files.lock().unwrap().clear();
         
         // Determine the main file
         let main_filename = if files.contains_key("main") {
@@ -415,32 +442,30 @@ impl SystemWorld {
         
         let mut main_file_id = None;
         let mut slots = self.slots.lock().unwrap();
+        let mut virtual_files = self.virtual_files.lock().unwrap();
         
         // Create file slots for all files in a common virtual directory
         for (filename, file_data) in files.iter() {
-            let vpath = VirtualPath::new(&format!("/virtual/{}", filename));
-            let file_id = FileId::new_fake(vpath);
-            
-            match file_data {
-                FileData::Bytes(bytes) => {
-                    let slot = FileSlot::from_inline_bytes(file_id, bytes.clone())
-                        .map_err(|err| format!("Failed to create file slot for {}: {}", filename, err))?;
-                    slots.insert(file_id, slot);
-                }
+            let bytes = match file_data {
+                FileData::Bytes(b) => b.clone(),
                 FileData::Path(path) => {
-                    // For path-based files, read them and create slots
                     let path = path
                         .canonicalize()
                         .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
-                    
-                    let bytes = std::fs::read(&path)
-                        .map_err(|err| format!("Failed to read file {}: {}", filename, err))?;
-                    
-                    let slot = FileSlot::from_inline_bytes(file_id, bytes)
-                        .map_err(|err| format!("Failed to create file slot for {}: {}", filename, err))?;
-                    slots.insert(file_id, slot);
+                    std::fs::read(&path)
+                        .map_err(|err| format!("Failed to read file {}: {}", filename, err))?
                 }
-            }
+            };
+            
+            // Store in virtual_files map for lookup
+            virtual_files.insert(filename.clone(), bytes.clone());
+            
+            let vpath = VirtualPath::new(&format!("/virtual/{}", filename));
+            let file_id = FileId::new_fake(vpath);
+            
+            let slot = FileSlot::from_inline_bytes(file_id, bytes)
+                .map_err(|err| format!("Failed to create file slot for {}: {}", filename, err))?;
+            slots.insert(file_id, slot);
             
             if filename == main_filename {
                 main_file_id = Some(file_id);
@@ -448,6 +473,7 @@ impl SystemWorld {
         }
         
         drop(slots);
+        drop(virtual_files);
         
         self.main = main_file_id.ok_or("Could not determine main file")?;
         Ok(())

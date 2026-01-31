@@ -131,9 +131,13 @@ def test_compile_from_dict_svg_format():
     }
     
     result = typst.compile(files, format="svg")
-    assert isinstance(result, list)
-    assert len(result) >= 1
-    assert b"<svg" in result[0]
+    # SVG can return bytes (single page) or list (multi-page)
+    if isinstance(result, list):
+        assert len(result) >= 1
+        assert b"<svg" in result[0]
+    else:
+        assert isinstance(result, bytes)
+        assert b"<svg" in result
 
 
 def test_compile_from_dict_png_format():
@@ -147,6 +151,10 @@ def test_compile_from_dict_png_format():
     }
     
     result = typst.compile(files, format="png")
-    assert isinstance(result, list)
-    assert len(result) >= 1
-    assert result[0].startswith(b"\x89PNG")
+    # PNG can return bytes (single page) or list (multi-page)
+    if isinstance(result, list):
+        assert len(result) >= 1
+        assert result[0].startswith(b"\x89PNG")
+    else:
+        assert isinstance(result, bytes)
+        assert result.startswith(b"\x89PNG")
