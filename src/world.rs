@@ -1,5 +1,6 @@
 use chrono::{DateTime, Datelike, Local};
 use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use std::fs;
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -15,7 +16,7 @@ use typst_kit::{
     package::PackageStorage,
 };
 
-use crate::{Input, download::SlientDownload};
+use crate::{Input, FileData, download::SlientDownload};
 
 /// A world that provides access to the operating system.
 pub struct SystemWorld {
@@ -95,6 +96,7 @@ impl SystemWorld {
         match input {
             Input::Path(path) => self.configure_path_input(path),
             Input::Bytes(bytes) => self.configure_bytes_input(bytes),
+            Input::Files(files) => self.configure_files_input(files),
         }
     }
 
@@ -220,6 +222,61 @@ impl SystemWorldBuilder {
                 bytes_main = Some(file_id);
                 file_id
             }
+            Input::Files(files) => {
+                // Multi-file input with a hashmap
+                let mut main_file_id = None;
+                
+                // First pass: determine the main file
+                // If there's a "main" key, use that; otherwise use the first entry  
+                let main_filename = if files.contains_key("main") {
+                    "main"
+                } else if files.contains_key("main.typ") {
+                    "main.typ"
+                } else {
+                    files.keys().next().ok_or("Files input cannot be empty")?
+                };
+                
+                // Second pass: create file slots for all files
+                // Use a common virtual directory for all files
+                for (filename, file_data) in files.iter() {
+                    // Create virtual paths in a common directory
+                    let vpath = VirtualPath::new(&format!("/virtual/{}", filename));
+                    let file_id = FileId::new_fake(vpath);
+                    
+                    match file_data {
+                        FileData::Bytes(bytes) => {
+                            let mut file_slot = FileSlot::new(file_id);
+                            file_slot
+                                .source
+                                .init(Source::new(file_id, decode_utf8(bytes)?.to_string()));
+                            file_slot.file.init(Bytes::new(bytes.clone()));
+                            slots.insert(file_id, file_slot);
+                        }
+                        FileData::Path(path) => {
+                            // For path-based files in the dict, read them and create slots
+                            let path = path
+                                .canonicalize()
+                                .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
+                            
+                            let bytes = std::fs::read(&path)
+                                .map_err(|err| format!("Failed to read file {}: {}", filename, err))?;
+                            
+                            let mut file_slot = FileSlot::new(file_id);
+                            file_slot
+                                .source
+                                .init(Source::new(file_id, decode_utf8(&bytes)?.to_string()));
+                            file_slot.file.init(Bytes::new(bytes));
+                            slots.insert(file_id, file_slot);
+                        }
+                    }
+                    
+                    if filename == main_filename {
+                        main_file_id = Some(file_id);
+                    }
+                }
+                
+                main_file_id.ok_or("Could not determine main file")?
+            }
         };
         let world = SystemWorld {
             workdir: std::env::current_dir().ok(),
@@ -336,6 +393,63 @@ impl SystemWorld {
         let slot = FileSlot::from_inline_bytes(id, bytes).map_err(|err| err.to_string())?;
         self.main = id;
         self.slots.lock().unwrap().insert(id, slot);
+        Ok(())
+    }
+    
+    fn configure_files_input(&mut self, files: HashMap<String, FileData>) -> StrResult<()> {
+        if files.is_empty() {
+            return Err("Files input cannot be empty".into());
+        }
+        
+        // Clear existing file slots
+        self.slots.lock().unwrap().clear();
+        
+        // Determine the main file
+        let main_filename = if files.contains_key("main") {
+            "main"
+        } else if files.contains_key("main.typ") {
+            "main.typ"
+        } else {
+            files.keys().next().ok_or("Files input cannot be empty")?
+        };
+        
+        let mut main_file_id = None;
+        let mut slots = self.slots.lock().unwrap();
+        
+        // Create file slots for all files in a common virtual directory
+        for (filename, file_data) in files.iter() {
+            let vpath = VirtualPath::new(&format!("/virtual/{}", filename));
+            let file_id = FileId::new_fake(vpath);
+            
+            match file_data {
+                FileData::Bytes(bytes) => {
+                    let slot = FileSlot::from_inline_bytes(file_id, bytes.clone())
+                        .map_err(|err| format!("Failed to create file slot for {}: {}", filename, err))?;
+                    slots.insert(file_id, slot);
+                }
+                FileData::Path(path) => {
+                    // For path-based files, read them and create slots
+                    let path = path
+                        .canonicalize()
+                        .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
+                    
+                    let bytes = std::fs::read(&path)
+                        .map_err(|err| format!("Failed to read file {}: {}", filename, err))?;
+                    
+                    let slot = FileSlot::from_inline_bytes(file_id, bytes)
+                        .map_err(|err| format!("Failed to create file slot for {}: {}", filename, err))?;
+                    slots.insert(file_id, slot);
+                }
+            }
+            
+            if filename == main_filename {
+                main_file_id = Some(file_id);
+            }
+        }
+        
+        drop(slots);
+        
+        self.main = main_file_id.ok_or("Could not determine main file")?;
         Ok(())
     }
 }

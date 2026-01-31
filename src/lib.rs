@@ -184,6 +184,14 @@ fn create_typst_warning_details_from_diagnostics(
 pub enum Input {
     Path(PathBuf),
     Bytes(Vec<u8>),
+    #[pyo3(transparent, annotation = "dict[str, bytes | str]")]
+    Files(HashMap<String, FileData>),
+}
+
+#[derive(FromPyObject, Clone)]
+pub enum FileData {
+    Path(PathBuf),
+    Bytes(Vec<u8>),
 }
 
 /// Enum to represent sys_inputs parameter in compile methods:
