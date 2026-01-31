@@ -73,7 +73,8 @@ def test_compile_from_empty_dict_raises_error():
     """Test that compiling with an empty dict raises an error."""
     files = {}
     
-    with pytest.raises((typst.TypstError, RuntimeError, ValueError)):
+    # Empty dict should raise a runtime error
+    with pytest.raises(RuntimeError, match="Files input cannot be empty"):
         typst.compile(files, format="pdf")
 
 

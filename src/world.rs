@@ -186,6 +186,49 @@ impl SystemWorld {
     }
 }
 
+/// Helper function to process multiple files and populate slots and virtual_files map
+fn process_files_into_slots(
+    files: &HashMap<String, FileData>,
+    main_filename: &str,
+    slots: &mut FxHashMap<FileId, FileSlot>,
+    virtual_files_map: &mut HashMap<String, Vec<u8>>,
+) -> StrResult<FileId> {
+    let mut main_file_id = None;
+    
+    for (filename, file_data) in files.iter() {
+        let bytes = match file_data {
+            FileData::Bytes(b) => b.clone(),
+            FileData::Path(path) => {
+                let path = path
+                    .canonicalize()
+                    .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
+                std::fs::read(&path)
+                    .map_err(|err| format!("Failed to read file {}: {}", filename, err))?
+            }
+        };
+        
+        // Store in virtual_files map for lookup
+        virtual_files_map.insert(filename.clone(), bytes.clone());
+        
+        // Create virtual paths in a common directory
+        let vpath = VirtualPath::new(&format!("/virtual/{}", filename));
+        let file_id = FileId::new_fake(vpath);
+        
+        let mut file_slot = FileSlot::new(file_id);
+        file_slot
+            .source
+            .init(Source::new(file_id, decode_utf8(&bytes)?.to_string()));
+        file_slot.file.init(Bytes::new(bytes));
+        slots.insert(file_id, file_slot);
+        
+        if filename == main_filename {
+            main_file_id = Some(file_id);
+        }
+    }
+    
+    main_file_id.ok_or_else(|| "Could not determine main file".into())
+}
+
 pub struct SystemWorldBuilder {
     root: PathBuf,
     input: Input,
@@ -255,11 +298,9 @@ impl SystemWorldBuilder {
                 file_id
             }
             Input::Files(files) => {
-                // Multi-file input with a hashmap
-                let mut main_file_id = None;
+                // Multi-file input with a HashMap
                 
-                // First pass: determine the main file
-                // If there's a "main" key, use that; otherwise use the first entry  
+                // Determine the main file
                 let main_filename = if files.contains_key("main") {
                     "main"
                 } else if files.contains_key("main.typ") {
@@ -268,39 +309,8 @@ impl SystemWorldBuilder {
                     files.keys().next().ok_or("Files input cannot be empty")?
                 };
                 
-                // Second pass: create file slots and populate virtual_files
-                for (filename, file_data) in files.iter() {
-                    let bytes = match file_data {
-                        FileData::Bytes(b) => b.clone(),
-                        FileData::Path(path) => {
-                            let path = path
-                                .canonicalize()
-                                .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
-                            std::fs::read(&path)
-                                .map_err(|err| format!("Failed to read file {}: {}", filename, err))?
-                        }
-                    };
-                    
-                    // Store in virtual_files map for lookup
-                    virtual_files_map.insert(filename.clone(), bytes.clone());
-                    
-                    // Create virtual paths in a common directory
-                    let vpath = VirtualPath::new(&format!("/virtual/{}", filename));
-                    let file_id = FileId::new_fake(vpath);
-                    
-                    let mut file_slot = FileSlot::new(file_id);
-                    file_slot
-                        .source
-                        .init(Source::new(file_id, decode_utf8(&bytes)?.to_string()));
-                    file_slot.file.init(Bytes::new(bytes));
-                    slots.insert(file_id, file_slot);
-                    
-                    if filename == main_filename {
-                        main_file_id = Some(file_id);
-                    }
-                }
-                
-                main_file_id.ok_or("Could not determine main file")?
+                // Process files into slots and virtual_files map
+                process_files_into_slots(&files, main_filename, &mut slots, &mut virtual_files_map)?
             }
         };
         let world = SystemWorld {
@@ -440,42 +450,16 @@ impl SystemWorld {
             files.keys().next().ok_or("Files input cannot be empty")?
         };
         
-        let mut main_file_id = None;
         let mut slots = self.slots.lock().unwrap();
         let mut virtual_files = self.virtual_files.lock().unwrap();
         
-        // Create file slots for all files in a common virtual directory
-        for (filename, file_data) in files.iter() {
-            let bytes = match file_data {
-                FileData::Bytes(b) => b.clone(),
-                FileData::Path(path) => {
-                    let path = path
-                        .canonicalize()
-                        .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
-                    std::fs::read(&path)
-                        .map_err(|err| format!("Failed to read file {}: {}", filename, err))?
-                }
-            };
-            
-            // Store in virtual_files map for lookup
-            virtual_files.insert(filename.clone(), bytes.clone());
-            
-            let vpath = VirtualPath::new(&format!("/virtual/{}", filename));
-            let file_id = FileId::new_fake(vpath);
-            
-            let slot = FileSlot::from_inline_bytes(file_id, bytes)
-                .map_err(|err| format!("Failed to create file slot for {}: {}", filename, err))?;
-            slots.insert(file_id, slot);
-            
-            if filename == main_filename {
-                main_file_id = Some(file_id);
-            }
-        }
+        // Use helper function to process files
+        let main_file_id = process_files_into_slots(&files, main_filename, &mut slots, &mut virtual_files)?;
         
         drop(slots);
         drop(virtual_files);
         
-        self.main = main_file_id.ok_or("Could not determine main file")?;
+        self.main = main_file_id;
         Ok(())
     }
 }
