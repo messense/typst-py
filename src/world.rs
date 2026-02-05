@@ -306,7 +306,7 @@ impl SystemWorldBuilder {
                 } else if files.contains_key("main.typ") {
                     "main.typ"
                 } else {
-                    files.keys().next().ok_or("Files input cannot be empty")?
+                    files.keys().min().ok_or("Files input cannot be empty")?
                 };
                 
                 // Process files into slots and virtual_files map
@@ -447,7 +447,7 @@ impl SystemWorld {
         } else if files.contains_key("main.typ") {
             "main.typ"
         } else {
-            files.keys().next().ok_or("Files input cannot be empty")?
+            files.keys().min().ok_or("Files input cannot be empty")?
         };
         
         let mut slots = self.slots.lock().unwrap();

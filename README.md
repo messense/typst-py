@@ -88,16 +88,15 @@ for filename in ["main.typ", "lib.typ", "utils.typ"]:
 pdf = typst.compile(files, format="pdf")
 ```
 
-### Option 2: Using temporary files with importlib.resources.as_file
+### Option 2: Using temporary files for package resources
 
-If you prefer working with actual file paths, you can use `importlib.resources.as_file`:
+If you prefer working with actual file paths (for example when you need to use `importlib.resources.as_file`), write your resources into a shared temporary directory:
 
 ```python
 import typst
 import importlib.resources
 import tempfile
 from pathlib import Path
-from contextlib import ExitStack
 
 # For multiple files, write them all to the same temporary directory
 with tempfile.TemporaryDirectory() as tmpdir:

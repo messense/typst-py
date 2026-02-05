@@ -18,9 +18,8 @@ def test_compile_from_dict_with_bytes():
 
 
 def test_compile_from_dict_without_main_key():
-    """Test that the first file is used as main when 'main' key is not present."""
-    # When there's no 'main' key, the first entry should be the main file
-    # Note: dict order is preserved in Python 3.7+
+    """Test that a file is chosen as main when 'main' key is not present."""
+    # When there's no 'main' key, fall back to a deterministic entry
     main_content = b'#import "helper.typ": helper\n= Document\n#helper()'
     helper_content = b'#let helper() = [Helper text]'
     
