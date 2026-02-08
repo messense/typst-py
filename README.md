@@ -50,78 +50,36 @@ values = json.loads(typst.query("hello.typ", "<note>", field="value", one=True))
 
 ## Multi-file projects
 
-Typst supports importing other files using `#import`. When working with multi-file projects in Python, you have several options:
-
-### Option 1: Using a dictionary (recommended for bundled packages)
-
-Pass a dictionary mapping filenames to their content (as bytes or paths):
+You can compile multi-file Typst projects by passing a dictionary mapping filenames to
+their content as bytes. The entry point must be keyed as `"main"` or `"main.typ"` (if
+there is only one file, any key works):
 
 ```python
 import typst
-
-# Define your files as bytes
-main_content = b'#import "lib.typ": greet\n= Hello\n#greet("World")'
-lib_content = b'#let greet(name) = [Hello, #name!]'
 
 files = {
-    "main.typ": main_content,    # Main file (key must be "main" or "main.typ")
-    "lib.typ": lib_content,      # Imported file
+    "main.typ": b'#import "lib.typ": greet\n= Hello\n#greet("World")',
+    "lib.typ": b'#let greet(name) = [Hello, #name!]',
 }
 
-# Compile the multi-file project
 pdf = typst.compile(files, format="pdf")
 ```
 
-This is especially useful when files are bundled as Python package resources:
+This is useful when Typst sources are bundled as Python package resources:
 
 ```python
 import typst
 import importlib.resources
 
-# Read files from your package
 files = {}
 for filename in ["main.typ", "lib.typ", "utils.typ"]:
-    content = importlib.resources.read_binary("mypackage.typst_files", filename)
-    files[filename] = content
+    files[filename] = importlib.resources.read_binary("mypackage.typst_files", filename)
 
-# Compile the project
 pdf = typst.compile(files, format="pdf")
 ```
 
-### Option 2: Using temporary files for package resources
-
-If you prefer working with actual file paths (for example when you need to use `importlib.resources.as_file`), write your resources into a shared temporary directory:
-
-```python
-import typst
-import importlib.resources
-import tempfile
-from pathlib import Path
-
-# For multiple files, write them all to the same temporary directory
-with tempfile.TemporaryDirectory() as tmpdir:
-    # Read each resource and write to temp directory
-    for filename in ["main.typ", "lib.typ"]:
-        content = importlib.resources.read_binary("mypackage.typst_files", filename)
-        (Path(tmpdir) / filename).write_bytes(content)
-    
-    # Compile using the main file path
-    main_path = Path(tmpdir) / "main.typ"
-    pdf = typst.compile(str(main_path), format="pdf")
-```
-
-**Note:** When using `importlib.resources.as_file` on individual files, each file gets its own temporary directory, which prevents imports from working. Always use a shared temporary directory for multi-file projects.
-
-### Option 3: Regular file paths
-
-If your Typst files are regular files on disk:
-
-```python
-import typst
-
-# Just compile the main file - imports will work automatically
-pdf = typst.compile("path/to/main.typ", format="pdf")
-```
+Dictionary values can also be file paths (as strings or `Path` objects), which will be
+read from disk.
 
 ## Passing values
 
