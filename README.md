@@ -48,6 +48,39 @@ import json
 values = json.loads(typst.query("hello.typ", "<note>", field="value", one=True))
 ```
 
+## Multi-file projects
+
+You can compile multi-file Typst projects by passing a dictionary mapping filenames to
+their content as bytes. The entry point must be keyed as `"main"` or `"main.typ"` (if
+there is only one file, any key works):
+
+```python
+import typst
+
+files = {
+    "main.typ": b'#import "lib.typ": greet\n= Hello\n#greet("World")',
+    "lib.typ": b'#let greet(name) = [Hello, #name!]',
+}
+
+pdf = typst.compile(files, format="pdf")
+```
+
+This is useful when Typst sources are bundled as Python package resources:
+
+```python
+import typst
+import importlib.resources
+
+files = {}
+for filename in ["main.typ", "lib.typ", "utils.typ"]:
+    files[filename] = importlib.resources.read_binary("mypackage.typst_files", filename)
+
+pdf = typst.compile(files, format="pdf")
+```
+
+Dictionary values can also be file paths (as strings or `Path` objects), which will be
+read from disk.
+
 ## Passing values
 
 You can pass values to the compiled Typst file with the `sys_inputs` argument. For example:

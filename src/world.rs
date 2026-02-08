@@ -1,9 +1,11 @@
 use chrono::{DateTime, Datelike, Local};
 use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use std::fs;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
+
 use typst::diag::{FileError, FileResult, StrResult};
 use typst::foundations::{Bytes, Datetime, Dict};
 use typst::syntax::{FileId, Lines, Source, VirtualPath};
@@ -15,7 +17,7 @@ use typst_kit::{
     package::PackageStorage,
 };
 
-use crate::{Input, download::SlientDownload};
+use crate::{Input, FileData, download::SlientDownload};
 
 /// A world that provides access to the operating system.
 pub struct SystemWorld {
@@ -95,6 +97,7 @@ impl SystemWorld {
         match input {
             Input::Path(path) => self.configure_path_input(path),
             Input::Bytes(bytes) => self.configure_bytes_input(bytes),
+            Input::Files(files) => self.configure_files_input(files),
         }
     }
 
@@ -154,6 +157,55 @@ impl SystemWorld {
     }
 }
 
+fn determine_main_filename<'a>(files: &'a HashMap<String, FileData>) -> StrResult<&'a str> {
+    if files.is_empty() {
+        return Err("Files input cannot be empty".into());
+    }
+    if files.contains_key("main") {
+        Ok("main")
+    } else if files.contains_key("main.typ") {
+        Ok("main.typ")
+    } else if files.len() == 1 {
+        Ok(files.keys().next().unwrap())
+    } else {
+        Err("Could not determine main file: use 'main' or 'main.typ' as key, or pass a single file".into())
+    }
+}
+
+fn process_files_into_slots(
+    files: &HashMap<String, FileData>,
+    main_filename: &str,
+    slots: &mut FxHashMap<FileId, FileSlot>,
+) -> StrResult<FileId> {
+    let mut main_file_id = None;
+
+    for (filename, file_data) in files.iter() {
+        let bytes = match file_data {
+            FileData::Bytes(b) => b.clone(),
+            FileData::Path(path) => {
+                let path = path
+                    .canonicalize()
+                    .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
+                std::fs::read(&path)
+                    .map_err(|err| format!("Failed to read file {}: {}", filename, err))?
+            }
+        };
+
+        let vpath = VirtualPath::new(&format!("/{}", filename));
+        let file_id = FileId::new(None, vpath);
+
+        let slot = FileSlot::from_inline_bytes(file_id, bytes)
+            .map_err(|err| err.to_string())?;
+        slots.insert(file_id, slot);
+
+        if filename == main_filename {
+            main_file_id = Some(file_id);
+        }
+    }
+
+    main_file_id.ok_or_else(|| "Could not determine main file".into())
+}
+
 pub struct SystemWorldBuilder {
     root: PathBuf,
     input: Input,
@@ -196,6 +248,7 @@ impl SystemWorldBuilder {
 
         let mut slots = FxHashMap::default();
         let mut bytes_main = None;
+
         let main = match self.input {
             Input::Path(path) => {
                 // Resolve the virtual path of the main file within the project root.
@@ -219,6 +272,10 @@ impl SystemWorldBuilder {
                 slots.insert(file_id, file_slot);
                 bytes_main = Some(file_id);
                 file_id
+            }
+            Input::Files(files) => {
+                let main_filename = determine_main_filename(&files)?;
+                process_files_into_slots(&files, main_filename, &mut slots)?
             }
         };
         let world = SystemWorld {
@@ -336,6 +393,17 @@ impl SystemWorld {
         let slot = FileSlot::from_inline_bytes(id, bytes).map_err(|err| err.to_string())?;
         self.main = id;
         self.slots.lock().unwrap().insert(id, slot);
+        Ok(())
+    }
+    
+    fn configure_files_input(&mut self, files: HashMap<String, FileData>) -> StrResult<()> {
+        let main_filename = determine_main_filename(&files)?;
+
+        let mut slots = self.slots.lock().unwrap();
+        let main_file_id = process_files_into_slots(&files, main_filename, &mut slots)?;
+        drop(slots);
+
+        self.main = main_file_id;
         Ok(())
     }
 }
