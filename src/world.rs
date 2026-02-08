@@ -5,6 +5,7 @@ use std::fs;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
+
 use typst::diag::{FileError, FileResult, StrResult};
 use typst::foundations::{Bytes, Datetime, Dict};
 use typst::syntax::{FileId, Lines, Source, VirtualPath};
@@ -28,8 +29,6 @@ pub struct SystemWorld {
     main: FileId,
     /// Reusable file id for in-memory (bytes) inputs.
     bytes_main: Option<FileId>,
-    /// Virtual files for multi-file inputs (maps file path to bytes).
-    virtual_files: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     /// Typst's standard library.
     library: LazyHash<Library>,
     /// Metadata about discovered fonts.
@@ -59,38 +58,10 @@ impl World for SystemWorld {
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        // Check if this is a virtual file first
-        let vpath_str = id.vpath().as_rootless_path().to_str();
-        if let Some(path_str) = vpath_str {
-            // Try to extract just the filename from the virtual path
-            if let Some(filename) = path_str.strip_prefix("virtual/") {
-                let virtual_files = self.virtual_files.lock().unwrap();
-                if let Some(bytes) = virtual_files.get(filename) {
-                    // Found a virtual file, create a source from it
-                    return Ok(Source::new(id, decode_utf8(bytes)?.to_string()));
-                }
-            }
-        }
-        
-        // Fall back to regular file loading
         self.slot(id, |slot| slot.source(&self.root, &self.package_storage))
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        // Check if this is a virtual file first
-        let vpath_str = id.vpath().as_rootless_path().to_str();
-        if let Some(path_str) = vpath_str {
-            // Try to extract just the filename from the virtual path
-            if let Some(filename) = path_str.strip_prefix("virtual/") {
-                let virtual_files = self.virtual_files.lock().unwrap();
-                if let Some(bytes) = virtual_files.get(filename) {
-                    // Found a virtual file, return the bytes
-                    return Ok(Bytes::new(bytes.clone()));
-                }
-            }
-        }
-        
-        // Fall back to regular file loading
         self.slot(id, |slot| slot.file(&self.root, &self.package_storage))
     }
 
@@ -186,15 +157,28 @@ impl SystemWorld {
     }
 }
 
-/// Helper function to process multiple files and populate slots and virtual_files map
+fn determine_main_filename<'a>(files: &'a HashMap<String, FileData>) -> StrResult<&'a str> {
+    if files.is_empty() {
+        return Err("Files input cannot be empty".into());
+    }
+    if files.contains_key("main") {
+        Ok("main")
+    } else if files.contains_key("main.typ") {
+        Ok("main.typ")
+    } else if files.len() == 1 {
+        Ok(files.keys().next().unwrap())
+    } else {
+        Err("Could not determine main file: use 'main' or 'main.typ' as key, or pass a single file".into())
+    }
+}
+
 fn process_files_into_slots(
     files: &HashMap<String, FileData>,
     main_filename: &str,
     slots: &mut FxHashMap<FileId, FileSlot>,
-    virtual_files_map: &mut HashMap<String, Vec<u8>>,
 ) -> StrResult<FileId> {
     let mut main_file_id = None;
-    
+
     for (filename, file_data) in files.iter() {
         let bytes = match file_data {
             FileData::Bytes(b) => b.clone(),
@@ -206,26 +190,19 @@ fn process_files_into_slots(
                     .map_err(|err| format!("Failed to read file {}: {}", filename, err))?
             }
         };
-        
-        // Store in virtual_files map for lookup
-        virtual_files_map.insert(filename.clone(), bytes.clone());
-        
-        // Create virtual paths in a common directory
-        let vpath = VirtualPath::new(&format!("/virtual/{}", filename));
-        let file_id = FileId::new_fake(vpath);
-        
-        let mut file_slot = FileSlot::new(file_id);
-        file_slot
-            .source
-            .init(Source::new(file_id, decode_utf8(&bytes)?.to_string()));
-        file_slot.file.init(Bytes::new(bytes));
-        slots.insert(file_id, file_slot);
-        
+
+        let vpath = VirtualPath::new(&format!("/{}", filename));
+        let file_id = FileId::new(None, vpath);
+
+        let slot = FileSlot::from_inline_bytes(file_id, bytes)
+            .map_err(|err| err.to_string())?;
+        slots.insert(file_id, slot);
+
         if filename == main_filename {
             main_file_id = Some(file_id);
         }
     }
-    
+
     main_file_id.ok_or_else(|| "Could not determine main file".into())
 }
 
@@ -271,8 +248,7 @@ impl SystemWorldBuilder {
 
         let mut slots = FxHashMap::default();
         let mut bytes_main = None;
-        let mut virtual_files_map = HashMap::new();
-        
+
         let main = match self.input {
             Input::Path(path) => {
                 // Resolve the virtual path of the main file within the project root.
@@ -298,19 +274,8 @@ impl SystemWorldBuilder {
                 file_id
             }
             Input::Files(files) => {
-                // Multi-file input with a HashMap
-                
-                // Determine the main file
-                let main_filename = if files.contains_key("main") {
-                    "main"
-                } else if files.contains_key("main.typ") {
-                    "main.typ"
-                } else {
-                    files.keys().min().ok_or("Files input cannot be empty")?
-                };
-                
-                // Process files into slots and virtual_files map
-                process_files_into_slots(&files, main_filename, &mut slots, &mut virtual_files_map)?
+                let main_filename = determine_main_filename(&files)?;
+                process_files_into_slots(&files, main_filename, &mut slots)?
             }
         };
         let world = SystemWorld {
@@ -318,7 +283,6 @@ impl SystemWorldBuilder {
             root: self.root,
             main,
             bytes_main,
-            virtual_files: Arc::new(Mutex::new(virtual_files_map)),
             library: LazyHash::new(
                 Library::builder()
                     .with_features(vec![typst::Feature::Html].into_iter().collect())
@@ -433,32 +397,12 @@ impl SystemWorld {
     }
     
     fn configure_files_input(&mut self, files: HashMap<String, FileData>) -> StrResult<()> {
-        if files.is_empty() {
-            return Err("Files input cannot be empty".into());
-        }
-        
-        // Clear existing file slots and virtual files
-        self.slots.lock().unwrap().clear();
-        self.virtual_files.lock().unwrap().clear();
-        
-        // Determine the main file
-        let main_filename = if files.contains_key("main") {
-            "main"
-        } else if files.contains_key("main.typ") {
-            "main.typ"
-        } else {
-            files.keys().min().ok_or("Files input cannot be empty")?
-        };
-        
+        let main_filename = determine_main_filename(&files)?;
+
         let mut slots = self.slots.lock().unwrap();
-        let mut virtual_files = self.virtual_files.lock().unwrap();
-        
-        // Use helper function to process files
-        let main_file_id = process_files_into_slots(&files, main_filename, &mut slots, &mut virtual_files)?;
-        
+        let main_file_id = process_files_into_slots(&files, main_filename, &mut slots)?;
         drop(slots);
-        drop(virtual_files);
-        
+
         self.main = main_file_id;
         Ok(())
     }

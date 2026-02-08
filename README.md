@@ -64,7 +64,7 @@ main_content = b'#import "lib.typ": greet\n= Hello\n#greet("World")'
 lib_content = b'#let greet(name) = [Hello, #name!]'
 
 files = {
-    "main": main_content,        # Main file (key can be "main" or "main.typ")
+    "main.typ": main_content,    # Main file (key must be "main" or "main.typ")
     "lib.typ": lib_content,      # Imported file
 }
 
