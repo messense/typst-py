@@ -108,6 +108,10 @@ class Compiler:
         format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
         sys_inputs: Union[EllipsisType, None, Dict[str, str]] = ...,
+        pdf_standards: Optional[
+            Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
+        ] = [],
+        root: Optional[PathLike] = None,
     ) -> Optional[Union[bytes, List[bytes]]]:
         """Compile a Typst project.
         Args:
@@ -121,6 +125,9 @@ class Compiler:
                 - Ellipsis (default): Keep existing sys_inputs from initialization or previous compile.
                 - None: Clear sys_inputs (equivalent to empty dictionary).
                 - Dict[str, str]: Use the provided dictionary as sys_inputs.
+            pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
+                One or more PDF standard profiles to apply when exporting.
+            root (Optional[PathLike]): Override the root path for this compilation.
         Returns:
             Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
         """
@@ -132,6 +139,10 @@ class Compiler:
         format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
         sys_inputs: Union[EllipsisType, None, Dict[str, str]] = ...,
+        pdf_standards: Optional[
+            Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
+        ] = [],
+        root: Optional[PathLike] = None,
     ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
         """Compile a Typst project and return both result and warnings.
         Args:
@@ -145,6 +156,9 @@ class Compiler:
                 - Ellipsis (default): Keep existing sys_inputs from initialization or previous compile.
                 - None: Clear sys_inputs (equivalent to empty dictionary).
                 - Dict[str, str]: Use the provided dictionary as sys_inputs.
+            pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
+                One or more PDF standard profiles to apply when exporting.
+            root (Optional[PathLike]): Override the root path for this compilation.
         Returns:
             Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]: Return a tuple of (compiled_data, warnings).
             The first element is the compiled file as `bytes` if output is `None`, otherwise `None`.
@@ -157,6 +171,7 @@ class Compiler:
         field: Optional[str] = None,
         one: bool = False,
         format: Optional[Literal["json", "yaml"]] = None,
+        root: Optional[PathLike] = None,
     ) -> str:
         """Query a Typst document.
         Args:
@@ -164,6 +179,7 @@ class Compiler:
             field (Optional[str], optional): Field to query.
             one (bool, optional): Query only one element.
             format (Optional[str]): Output format, `json` or `yaml`.
+            root (Optional[PathLike]): Override the root path for this query.
         Returns:
             str: Return the query result.
         """

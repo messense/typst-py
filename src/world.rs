@@ -135,6 +135,15 @@ impl SystemWorld {
         &self.root
     }
 
+    /// Update the root path for the world.
+    pub fn set_root(&mut self, root: PathBuf) -> StrResult<()> {
+        self.root = root
+            .canonicalize()
+            .map_err(|err| format!("Failed to canonicalize root: {}", err))?;
+        self.reset();
+        Ok(())
+    }
+
     /// The current working directory.
     pub fn workdir(&self) -> &Path {
         self.workdir.as_deref().unwrap_or(Path::new("."))
