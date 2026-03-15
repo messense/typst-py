@@ -350,6 +350,15 @@ pub struct Compiler {
 }
 
 impl Compiler {
+    fn apply_root(&mut self, root: Option<PathBuf>) -> PyResult<()> {
+        if let Some(root) = root {
+            self.world
+                .set_root(root)
+                .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
+        }
+        Ok(())
+    }
+
     fn apply_input(&mut self, input: Option<Input>) -> PyResult<()> {
         if let Some(input) = input {
             self.world
@@ -516,7 +525,7 @@ impl Compiler {
 
     /// Compile a typst file to PDF
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new()))]
+    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None))]
     fn py_compile(
         &mut self,
         py: Python<'_>,
@@ -526,7 +535,9 @@ impl Compiler {
         ppi: Option<f32>,
         #[pyo3(from_py_with = extract_sys_inputs_option)] sys_inputs: SysInputsOption,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
+        root: Option<PathBuf>,
     ) -> PyResult<Py<PyAny>> {
+        self.apply_root(root)?;
         self.apply_input(input)?;
         self.apply_sys_inputs(sys_inputs);
         if let Some(output) = output {
@@ -592,7 +603,7 @@ impl Compiler {
 
     /// Compile a typst file and return both result and warnings
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new()))]
+    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None))]
     fn py_compile_with_warnings(
         &mut self,
         py: Python<'_>,
@@ -602,7 +613,9 @@ impl Compiler {
         ppi: Option<f32>,
         #[pyo3(from_py_with = extract_sys_inputs_option)] sys_inputs: SysInputsOption,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
+        root: Option<PathBuf>,
     ) -> PyResult<Py<PyAny>> {
+        self.apply_root(root)?;
         self.apply_input(input)?;
         self.apply_sys_inputs(sys_inputs);
         let result = py
@@ -656,7 +669,7 @@ impl Compiler {
     }
 
     /// Query a typst document
-    #[pyo3(name = "query", signature = (selector, field = None, one = false, format = None))]
+    #[pyo3(name = "query", signature = (selector, field = None, one = false, format = None, root = None))]
     fn py_query(
         &mut self,
         py: Python<'_>,
@@ -664,7 +677,9 @@ impl Compiler {
         field: Option<&str>,
         one: bool,
         format: Option<&str>,
+        root: Option<PathBuf>,
     ) -> PyResult<Py<PyAny>> {
+        self.apply_root(root)?;
         py.detach(|| self.query(selector, field, one, format))
             .map(|s| PyString::new(py, &s).into())
     }
@@ -713,6 +728,7 @@ fn compile(
         ppi,
         SysInputsOption::Keep,
         pdf_standards,
+        None,
     )
 }
 
@@ -759,6 +775,7 @@ fn compile_with_warnings(
         ppi,
         SysInputsOption::Keep,
         pdf_standards,
+        None,
     )
 }
 
@@ -801,7 +818,7 @@ fn py_query(
         sys_inputs,
         package_path,
     )?;
-    compiler.py_query(py, selector, field, one, format)
+    compiler.py_query(py, selector, field, one, format, None)
 }
 
 /// Python binding to typst
