@@ -47,7 +47,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist
-          sccache: "true"
+          sccache: "${{ matrix.platform.target == 'x86_64' && 'false' || 'true' }}"
           manylinux: ${{ matrix.platform.manylinux || 'auto' }}
           before-script-linux: |
             which yum > /dev/null && yum install -y perl-core
@@ -59,7 +59,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist -i python3.14t
-          sccache: "true"
+          sccache: "${{ matrix.platform.target == 'x86_64' && 'false' || 'true' }}"
           manylinux: ${{ matrix.platform.manylinux || 'auto' }}
           before-script-linux: |
             which yum > /dev/null && yum install -y perl-IPC-Cmd
