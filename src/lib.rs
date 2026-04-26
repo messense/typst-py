@@ -17,6 +17,24 @@ mod download;
 mod query;
 mod world;
 
+#[cfg(target_arch = "wasm32")]
+fn initialize_rayon_for_wasm() -> PyResult<()> {
+    use std::sync::OnceLock;
+    static INIT: OnceLock<()> = OnceLock::new();
+    INIT.get_or_init(|| {
+        let _ = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .use_current_thread()
+            .build_global();
+    });
+    Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn initialize_rayon_for_wasm() -> PyResult<()> {
+    Ok(())
+}
+
 // Create custom exceptions that inherit from RuntimeError
 create_exception!(typst, TypstError, PyRuntimeError);
 
@@ -834,6 +852,7 @@ mod _typst {
 
     #[pymodule_init]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
+        super::initialize_rayon_for_wasm()?;
         m.add("__version__", env!("CARGO_PKG_VERSION"))?;
         Ok(())
     }
