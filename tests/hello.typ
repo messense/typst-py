@@ -1,6 +1,6 @@
 #set document(
-  title: "Hello Typst", 
-  author: "Juno Takano", 
+  title: "Hello Typst",
+  author: "Juno Takano",
   date: auto,
   keywords: ("typst", "typesetting"),
 )
@@ -17,7 +17,7 @@ Typst is a typesetting system that takes code in and outputs PDFs.
 This file is an example of several features you can use in it.
 
 == Math notation
-The first example Typst shows you is for writing the 
+The first example Typst shows you is for writing the
 Fibonacci sequence's definition through its
 recurrence relation $F_n = F_(n-1) + F_(n-2)$. That's inline math for you.
 
@@ -68,10 +68,10 @@ This *bold text* is created using `*asterisks*`. _Italics_ are made using `_unde
 
 - An unordered list
 - with a few
-- items uses hyphens 
+- items uses hyphens
 - for markers
 
-+ This numbered list 
++ This numbered list
 + uses instead
 + the ```typst +``` sign
 + for each item
@@ -82,8 +82,8 @@ This *bold text* is created using `*asterisks*`. _Italics_ are made using `_unde
 There is also a `#quote` function:
 
 #quote(attribution: [#link("https://typst.app/docs/tutorial/writing-in-typst/")[Typst Docs, _Writing in typst_]])[
-  The caption consists of arbitrary markup. To give markup to 
-  a function, we enclose it in square brackets. This construct 
+  The caption consists of arbitrary markup. To give markup to
+  a function, we enclose it in square brackets. This construct
   is called a content block.
 ]
 
