@@ -239,7 +239,7 @@ fn extract_sys_inputs_option(obj: &Bound<'_, PyAny>) -> PyResult<SysInputsOption
 }
 
 /// Immutable information about a single font variant
-#[pyclass(module = "typst._typst", frozen)]
+#[pyclass(module = "typst._typst", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub struct FontInfo {
     /// The font family name
@@ -279,7 +279,7 @@ impl FontInfo {
     }
 }
 
-#[pyclass(module = "typst._typst")]
+#[pyclass(module = "typst._typst", from_py_object)]
 #[derive(Clone)]
 pub struct Fonts(Arc<typst_kit::fonts::Fonts>);
 
