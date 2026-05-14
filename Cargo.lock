@@ -2912,7 +2912,7 @@ dependencies = [
 
 [[package]]
 name = "typst-py"
-version = "0.14.8"
+version = "0.14.9"
 dependencies = [
  "chrono",
  "codespan-reporting",
