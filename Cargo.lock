@@ -452,6 +452,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ecow"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62bac48c16a993694c703f2991527d422d9efb8ec5625756004ba30e97683720"
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2684,7 +2690,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f6511ee598476f4f322b4d13891083d96dbacb8f9c2b908604c7094ba390653"
 dependencies = [
  "comemo",
- "ecow",
+ "ecow 0.2.6",
  "rustc-hash",
  "typst-eval",
  "typst-html",
@@ -2710,7 +2716,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "687757487dfc0c1e941344d5024cf7a28364e70c3e304faad89ac65597f62526"
 dependencies = [
  "comemo",
- "ecow",
+ "ecow 0.2.6",
  "indexmap",
  "rustc-hash",
  "stacker",
@@ -2731,7 +2737,7 @@ checksum = "e29f8da4f964d4c90739c3c1e0288b0ba1bccc3cc50623a6d558300b86ca8aad"
 dependencies = [
  "bumpalo",
  "comemo",
- "ecow",
+ "ecow 0.2.6",
  "palette",
  "rustc-hash",
  "time",
@@ -2751,7 +2757,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31476ec753e080ffdd543a0e74b6d319355449ff3eca3f216634f31cfd09a92a"
 dependencies = [
  "dirs",
- "ecow",
+ "ecow 0.2.6",
  "env_proxy",
  "fastrand",
  "flate2",
@@ -2780,7 +2786,7 @@ dependencies = [
  "bumpalo",
  "codex",
  "comemo",
- "ecow",
+ "ecow 0.2.6",
  "either",
  "hypher",
  "icu_properties 1.5.1",
@@ -2820,7 +2826,7 @@ dependencies = [
  "codex",
  "comemo",
  "csv",
- "ecow",
+ "ecow 0.2.6",
  "flate2",
  "fontdb",
  "glidesort",
@@ -2893,7 +2899,7 @@ dependencies = [
  "az",
  "bytemuck",
  "comemo",
- "ecow",
+ "ecow 0.2.6",
  "image",
  "indexmap",
  "infer",
@@ -2917,7 +2923,7 @@ dependencies = [
  "chrono",
  "codespan-reporting",
  "comemo",
- "ecow",
+ "ecow 0.3.0",
  "pathdiff",
  "pyo3",
  "rayon",
@@ -2943,7 +2949,7 @@ dependencies = [
  "arrayvec",
  "bumpalo",
  "comemo",
- "ecow",
+ "ecow 0.2.6",
  "regex",
  "typst-library",
  "typst-macros",
@@ -2980,7 +2986,7 @@ checksum = "e46b811837ade1f0243ef0d8bf3fb06d166443090eac22c28643f374c2ccdc9d"
 dependencies = [
  "base64",
  "comemo",
- "ecow",
+ "ecow 0.2.6",
  "flate2",
  "hayro",
  "hayro-svg",
@@ -3002,7 +3008,7 @@ version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a95d9192060e23b1e491b0b94dff676acddc92a4d672aeb8ca3890a5a734e879"
 dependencies = [
- "ecow",
+ "ecow 0.2.6",
  "rustc-hash",
  "serde",
  "toml",
