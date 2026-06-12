@@ -9,7 +9,7 @@ use typst::layout::PagedDocument;
 use typst::syntax::{FileId, Lines, Span};
 use typst_html::HtmlDocument;
 
-use crate::world::SystemWorld;
+use crate::{CreationTimestamp, world::SystemWorld};
 
 type CodespanResult<T> = Result<T, CodespanError>;
 type CodespanError = codespan_reporting::files::Error;
@@ -24,14 +24,22 @@ impl SystemWorld {
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
+        creation_timestamp: Option<&CreationTimestamp>,
     ) -> Result<CompileSuccess, CompileError> {
+        if let Some(creation_timestamp) = creation_timestamp {
+            self.set_now(creation_timestamp.local());
+        }
+
         let normalized_format = format.unwrap_or("pdf").to_ascii_lowercase();
 
         let Warned { output, warnings } = match normalized_format.as_str() {
             "html" => self.compile_and_export_html(),
-            "pdf" | "png" | "svg" => {
-                self.compile_and_export_paged(normalized_format.as_str(), ppi, pdf_standards)
-            }
+            "pdf" | "png" | "svg" => self.compile_and_export_paged(
+                normalized_format.as_str(),
+                ppi,
+                pdf_standards,
+                creation_timestamp,
+            ),
             _ => return Err((vec![], vec![])),
         };
 
@@ -47,6 +55,7 @@ impl SystemWorld {
         format: &str,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
+        creation_timestamp: Option<&CreationTimestamp>,
     ) -> Warned<SourceResult<Vec<Vec<u8>>>> {
         let Warned { output, warnings } = typst::compile::<PagedDocument>(self);
         // Evict comemo cache to limit memory usage after compilation
@@ -57,7 +66,7 @@ impl SystemWorld {
                 let standards = typst_pdf::PdfStandards::new(pdf_standards)
                     .map_err(|e| eco_format!("PDF standards error: {:?}", e))
                     .at(Span::detached())?;
-                export_pdf(&document, self, standards).map(|pdf| vec![pdf])
+                export_pdf(&document, self, standards, creation_timestamp).map(|pdf| vec![pdf])
             }
             "png" => export_image(&document, ImageExportFormat::Png, ppi).at(Span::detached()),
             "svg" => export_image(&document, ImageExportFormat::Svg, ppi).at(Span::detached()),
@@ -99,12 +108,17 @@ fn export_pdf(
     document: &PagedDocument,
     _world: &SystemWorld,
     standards: typst_pdf::PdfStandards,
+    creation_timestamp: Option<&CreationTimestamp>,
 ) -> SourceResult<Vec<u8>> {
+    let timestamp = creation_timestamp
+        .map(CreationTimestamp::pdf)
+        .or_else(|| now().map(typst_pdf::Timestamp::new_utc));
+
     let buffer = typst_pdf::pdf(
         document,
         &typst_pdf::PdfOptions {
             ident: typst::foundations::Smart::Auto,
-            timestamp: now().map(typst_pdf::Timestamp::new_utc),
+            timestamp,
             standards,
             ..Default::default()
         },

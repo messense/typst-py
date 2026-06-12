@@ -17,7 +17,7 @@ use typst_kit::{
     package::PackageStorage,
 };
 
-use crate::{Input, FileData, download::SlientDownload};
+use crate::{FileData, Input, download::SlientDownload};
 
 /// A world that provides access to the operating system.
 pub struct SystemWorld {
@@ -111,6 +111,11 @@ impl SystemWorld {
         self.now.take();
     }
 
+    pub(crate) fn set_now(&mut self, now: DateTime<Local>) {
+        self.now.take();
+        let _ = self.now.set(now);
+    }
+
     /// Update the sys_inputs for the world.
     pub fn set_inputs(&mut self, inputs: Dict) {
         self.library = LazyHash::new(
@@ -177,7 +182,10 @@ fn determine_main_filename(files: &HashMap<String, FileData>) -> StrResult<&str>
     } else if files.len() == 1 {
         Ok(files.keys().next().unwrap())
     } else {
-        Err("Could not determine main file: use 'main' or 'main.typ' as key, or pass a single file".into())
+        Err(
+            "Could not determine main file: use 'main' or 'main.typ' as key, or pass a single file"
+                .into(),
+        )
     }
 }
 
@@ -192,9 +200,9 @@ fn process_files_into_slots(
         let bytes = match file_data {
             FileData::Bytes(b) => b.clone(),
             FileData::Path(path) => {
-                let path = path
-                    .canonicalize()
-                    .map_err(|err| format!("Failed to canonicalize path for {}: {}", filename, err))?;
+                let path = path.canonicalize().map_err(|err| {
+                    format!("Failed to canonicalize path for {}: {}", filename, err)
+                })?;
                 std::fs::read(&path)
                     .map_err(|err| format!("Failed to read file {}: {}", filename, err))?
             }
@@ -203,8 +211,7 @@ fn process_files_into_slots(
         let vpath = VirtualPath::new(format!("/{}", filename));
         let file_id = FileId::new(None, vpath);
 
-        let slot = FileSlot::from_inline_bytes(file_id, bytes)
-            .map_err(|err| err.to_string())?;
+        let slot = FileSlot::from_inline_bytes(file_id, bytes).map_err(|err| err.to_string())?;
         slots.insert(file_id, slot);
 
         if filename == main_filename {
@@ -404,7 +411,7 @@ impl SystemWorld {
         self.slots.lock().unwrap().insert(id, slot);
         Ok(())
     }
-    
+
     fn configure_files_input(&mut self, files: HashMap<String, FileData>) -> StrResult<()> {
         let main_filename = determine_main_filename(&files)?;
 

@@ -1,14 +1,15 @@
 use std::{env, path::PathBuf, sync::Arc};
 
+use chrono::{DateTime, Datelike, FixedOffset, Local, Timelike, Utc};
 use pyo3::create_exception;
-use pyo3::exceptions::{PyRuntimeError, PyUserWarning, PyValueError};
+use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyUserWarning, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyList, PyString, PyTuple};
+use pyo3::types::{PyBytes, PyDateTime, PyList, PyString, PyTuple};
 
 use query::{QueryCommand, SerializationFormat, query as typst_query};
 use std::collections::HashMap;
 use typst::diag::SourceDiagnostic;
-use typst::foundations::{Dict, Value};
+use typst::foundations::{Datetime, Dict, Value};
 use typst::text::FontStyle;
 use world::SystemWorld;
 
@@ -85,6 +86,79 @@ impl TypstDiagnosticDetails {
 pub struct CompilationResult {
     pub data: Vec<Vec<u8>>,
     pub warnings: Vec<TypstDiagnosticDetails>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct CreationTimestamp {
+    utc: DateTime<Utc>,
+}
+
+impl CreationTimestamp {
+    fn from_unix(timestamp: i64) -> PyResult<Self> {
+        let utc = DateTime::from_timestamp(timestamp, 0).ok_or_else(invalid_timestamp)?;
+        Self::from_utc(utc)
+    }
+
+    fn from_utc(utc: DateTime<Utc>) -> PyResult<Self> {
+        datetime_from_utc(&utc).ok_or_else(invalid_timestamp)?;
+        Ok(Self { utc })
+    }
+
+    fn from_py_datetime(datetime: DateTime<FixedOffset>) -> PyResult<Self> {
+        if datetime.timestamp_subsec_micros() != 0 {
+            return Err(PyValueError::new_err(
+                "timestamp datetime must not include microseconds",
+            ));
+        }
+
+        Self::from_utc(datetime.with_timezone(&Utc))
+    }
+
+    pub(crate) fn pdf(&self) -> typst_pdf::Timestamp {
+        let datetime =
+            datetime_from_utc(&self.utc).expect("creation timestamp is validated on construction");
+        typst_pdf::Timestamp::new_utc(datetime)
+    }
+
+    pub(crate) fn local(&self) -> DateTime<Local> {
+        self.utc.with_timezone(&Local)
+    }
+}
+
+fn datetime_from_utc(utc: &DateTime<Utc>) -> Option<Datetime> {
+    Datetime::from_ymd_hms(
+        utc.year(),
+        utc.month().try_into().ok()?,
+        utc.day().try_into().ok()?,
+        utc.hour().try_into().ok()?,
+        utc.minute().try_into().ok()?,
+        utc.second().try_into().ok()?,
+    )
+}
+
+fn invalid_timestamp() -> PyErr {
+    PyValueError::new_err("timestamp is out of range")
+}
+
+fn extract_creation_timestamp(obj: &Bound<'_, PyAny>) -> PyResult<Option<CreationTimestamp>> {
+    if obj.is_none() {
+        return Ok(None);
+    }
+
+    if let Ok(timestamp) = obj.extract::<i64>() {
+        return CreationTimestamp::from_unix(timestamp).map(Some);
+    }
+
+    if obj.cast::<PyDateTime>().is_ok() {
+        let datetime = obj.extract::<DateTime<FixedOffset>>().map_err(|_| {
+            PyValueError::new_err("timestamp datetime must be timezone-aware with a fixed offset")
+        })?;
+        return CreationTimestamp::from_py_datetime(datetime).map(Some);
+    }
+
+    Err(PyTypeError::new_err(
+        "timestamp must be None, an int UNIX timestamp, or datetime.datetime",
+    ))
 }
 
 mod output_template {
@@ -411,11 +485,14 @@ impl Compiler {
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
+        creation_timestamp: Option<&CreationTimestamp>,
     ) -> Result<Vec<Vec<u8>>, TypstDiagnosticDetails> {
-        let ret = match self
-            .world
-            .compile_with_diagnostics(format, ppi, pdf_standards)
-        {
+        let ret = match self.world.compile_with_diagnostics(
+            format,
+            ppi,
+            pdf_standards,
+            creation_timestamp,
+        ) {
             Ok((buffer, _warnings)) => Ok(buffer), // Ignore warnings for backward compatibility
             Err((errors, warnings)) => Err(create_typst_diagnostic_details(
                 &self.world,
@@ -433,11 +510,14 @@ impl Compiler {
         format: Option<&str>,
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
+        creation_timestamp: Option<&CreationTimestamp>,
     ) -> Result<CompilationResult, TypstDiagnosticDetails> {
-        let ret = match self
-            .world
-            .compile_with_diagnostics(format, ppi, pdf_standards)
-        {
+        let ret = match self.world.compile_with_diagnostics(
+            format,
+            ppi,
+            pdf_standards,
+            creation_timestamp,
+        ) {
             Ok((buffer, warnings)) => {
                 let warning_details =
                     create_typst_warning_details_from_diagnostics(&self.world, &warnings);
@@ -543,7 +623,7 @@ impl Compiler {
 
     /// Compile a typst file to PDF
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None))]
+    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None))]
     fn py_compile(
         &mut self,
         py: Python<'_>,
@@ -554,6 +634,7 @@ impl Compiler {
         #[pyo3(from_py_with = extract_sys_inputs_option)] sys_inputs: SysInputsOption,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
         root: Option<PathBuf>,
+        #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
     ) -> PyResult<Py<PyAny>> {
         self.apply_root(root)?;
         self.apply_input(input)?;
@@ -580,7 +661,7 @@ impl Compiler {
             };
 
             let buffers = py
-                .detach(|| self.compile(format, ppi, &pdf_standards))
+                .detach(|| self.compile(format, ppi, &pdf_standards, timestamp.as_ref()))
                 .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
 
             let can_handle_multiple =
@@ -604,7 +685,7 @@ impl Compiler {
             Ok(py.None())
         } else {
             let buffers = py
-                .detach(|| self.compile(format, ppi, &pdf_standards))
+                .detach(|| self.compile(format, ppi, &pdf_standards, timestamp.as_ref()))
                 .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
             if buffers.len() == 1 {
                 // Return a single buffer as a single byte string
@@ -621,7 +702,7 @@ impl Compiler {
 
     /// Compile a typst file and return both result and warnings
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None))]
+    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None))]
     fn py_compile_with_warnings(
         &mut self,
         py: Python<'_>,
@@ -632,12 +713,13 @@ impl Compiler {
         #[pyo3(from_py_with = extract_sys_inputs_option)] sys_inputs: SysInputsOption,
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
         root: Option<PathBuf>,
+        #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
     ) -> PyResult<Py<PyAny>> {
         self.apply_root(root)?;
         self.apply_input(input)?;
         self.apply_sys_inputs(sys_inputs);
         let result = py
-            .detach(|| self.compile_with_warnings(format, ppi, &pdf_standards))
+            .detach(|| self.compile_with_warnings(format, ppi, &pdf_standards, timestamp.as_ref()))
             .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
 
         // Convert warnings to Python objects
@@ -714,7 +796,8 @@ impl Compiler {
     format = None, ppi = None,
     sys_inputs = HashMap::new(),
     pdf_standards = Vec::new(),
-    package_path=None,
+    package_path = None,
+    timestamp = None,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn compile(
@@ -729,6 +812,7 @@ fn compile(
     sys_inputs: HashMap<String, String>,
     #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     package_path: Option<PathBuf>,
+    #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         Some(input),
@@ -747,6 +831,7 @@ fn compile(
         SysInputsOption::Keep,
         pdf_standards,
         None,
+        timestamp,
     )
 }
 
@@ -761,7 +846,8 @@ fn compile(
     format = None, ppi = None,
     sys_inputs = HashMap::new(),
     pdf_standards = Vec::new(),
-    package_path=None
+    package_path = None,
+    timestamp = None,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn compile_with_warnings(
@@ -776,6 +862,7 @@ fn compile_with_warnings(
     sys_inputs: HashMap<String, String>,
     #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
     package_path: Option<PathBuf>,
+    #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         Some(input),
@@ -794,6 +881,7 @@ fn compile_with_warnings(
         SysInputsOption::Keep,
         pdf_standards,
         None,
+        timestamp,
     )
 }
 
@@ -811,7 +899,7 @@ fn compile_with_warnings(
         font_paths = FontsOrPaths::Paths(Vec::new()),
         ignore_system_fonts = false,
         sys_inputs = HashMap::new(),
-        package_path=None,
+        package_path = None,
     )
 )]
 #[allow(clippy::too_many_arguments)]
