@@ -1,3 +1,4 @@
+import datetime
 import pytest
 import pathlib
 import tempfile
@@ -28,6 +29,48 @@ def test_compile_to_pdf_bytes(hello_typ_path):
     result = typst.compile(hello_typ_path, format="pdf")
     assert isinstance(result, bytes)
     assert result.startswith(b"%PDF-")
+
+
+def test_compile_to_pdf_with_timestamp_is_reproducible():
+    source = b"Rendered on #datetime.today(offset: 0).display()"
+
+    first = typst.compile(source, format="pdf", timestamp=0)
+    second = typst.compile(source, format="pdf", timestamp=0)
+    different_day = typst.compile(source, format="pdf", timestamp=86_400)
+
+    assert isinstance(first, bytes)
+    assert first.startswith(b"%PDF-")
+    assert first == second
+    assert first != different_day
+
+
+def test_compile_to_pdf_with_datetime_timestamp_is_reproducible():
+    source = b"Rendered on #datetime.today(offset: 0).display()"
+    timestamp = datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc)
+
+    from_datetime = typst.compile(source, format="pdf", timestamp=timestamp)
+    from_epoch = typst.compile(source, format="pdf", timestamp=0)
+
+    assert isinstance(from_datetime, bytes)
+    assert from_datetime == from_epoch
+
+
+def test_compile_to_pdf_with_subsecond_datetime_timestamp_raises():
+    source = b"= Hello"
+    timestamp = datetime.datetime(
+        2023, 11, 14, 22, 13, 20, 1, tzinfo=datetime.timezone.utc
+    )
+
+    with pytest.raises(ValueError, match="must not include microseconds"):
+        typst.compile(source, format="pdf", timestamp=timestamp)
+
+
+def test_compile_to_pdf_with_naive_datetime_timestamp_raises():
+    source = b"= Hello"
+    timestamp = datetime.datetime(2023, 11, 14, 22, 13, 20)
+
+    with pytest.raises(ValueError, match="must be timezone-aware"):
+        typst.compile(source, format="pdf", timestamp=timestamp)
 
 
 def test_compile_to_svg_bytes(hello_typ_path):
