@@ -7,6 +7,26 @@ Input = TypeVar("Input", str, pathlib.Path, bytes)
 OutputFormat = Literal["pdf", "svg", "png", "html"]
 PathLike = TypeVar("PathLike", str, pathlib.Path)
 CreationTimestamp = Union[int, datetime.datetime]
+PDFStandard = Literal[
+    "1.4",
+    "1.5",
+    "1.6",
+    "1.7",
+    "2.0",
+    "a-1a",
+    "a-1b",
+    "a-2a",
+    "a-2b",
+    "a-2u",
+    "a-3a",
+    "a-3b",
+    "a-3u",
+    "a-4",
+    "a-4e",
+    "a-4f",
+    "ua-1",
+]
+PDFStandards = Optional[Union[PDFStandard, List[PDFStandard]]]
 
 class TypstError(RuntimeError):
     """A structured error raised during Typst compilation or querying.
@@ -105,28 +125,27 @@ class Compiler:
         format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
         sys_inputs: Union[EllipsisType, None, Dict[str, str]] = ...,
-        pdf_standards: Optional[
-            Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
-        ] = [],
+        pdf_standards: PDFStandards = [],
         root: Optional[PathLike] = None,
         timestamp: Optional[CreationTimestamp] = None,
+        pretty: bool = False,
     ) -> Optional[Union[bytes, List[bytes]]]:
         """Compile a Typst project.
         Args:
             input: Optional .typ file bytes or path to compile for this invocation.
             output (Optional[PathLike], optional): Path to save the compiled file.
-            Allowed extensions are `.pdf`, `.svg` and `.png`
+            Allowed extensions are `.pdf`, `.svg`, `.png`, and `.html`
             format (Optional[str]): Output format.
-            Allowed values are `pdf`, `svg` and `png`.
+            Allowed values are `pdf`, `svg`, `png`, and `html`.
             ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
             sys_inputs: string key-value pairs to be passed to the document via sys.inputs.
                 - Ellipsis (default): Keep existing sys_inputs from initialization or previous compile.
                 - None: Clear sys_inputs (equivalent to empty dictionary).
                 - Dict[str, str]: Use the provided dictionary as sys_inputs.
-            pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
-                One or more PDF standard profiles to apply when exporting.
+            pdf_standards (PDFStandards): One or more PDF standard profiles to apply when exporting.
             root (Optional[PathLike]): Override the root path for this compilation.
             timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
+            pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
         Returns:
             Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
         """
@@ -138,28 +157,27 @@ class Compiler:
         format: Optional[OutputFormat] = None,
         ppi: Optional[float] = None,
         sys_inputs: Union[EllipsisType, None, Dict[str, str]] = ...,
-        pdf_standards: Optional[
-            Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
-        ] = [],
+        pdf_standards: PDFStandards = [],
         root: Optional[PathLike] = None,
         timestamp: Optional[CreationTimestamp] = None,
+        pretty: bool = False,
     ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
         """Compile a Typst project and return both result and warnings.
         Args:
             input: Optional .typ file bytes or path to compile for this invocation.
             output (Optional[PathLike], optional): Path to save the compiled file.
-            Allowed extensions are `.pdf`, `.svg` and `.png`
+            Allowed extensions are `.pdf`, `.svg`, `.png`, and `.html`
             format (Optional[str]): Output format.
-            Allowed values are `pdf`, `svg` and `png`.
+            Allowed values are `pdf`, `svg`, `png`, and `html`.
             ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
             sys_inputs: string key-value pairs to be passed to the document via sys.inputs.
                 - Ellipsis (default): Keep existing sys_inputs from initialization or previous compile.
                 - None: Clear sys_inputs (equivalent to empty dictionary).
                 - Dict[str, str]: Use the provided dictionary as sys_inputs.
-            pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
-                One or more PDF standard profiles to apply when exporting.
+            pdf_standards (PDFStandards): One or more PDF standard profiles to apply when exporting.
             root (Optional[PathLike]): Override the root path for this compilation.
             timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
+            pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
         Returns:
             Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]: Return a tuple of (compiled_data, warnings).
             The first element is the compiled file as `bytes` if output is `None`, otherwise `None`.
@@ -212,11 +230,10 @@ def compile(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[
-        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
-    ] = [],
+    pdf_standards: PDFStandards = [],
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
+    pretty: bool = False,
 ) -> None: ...
 @overload
 def compile(
@@ -228,11 +245,10 @@ def compile(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[
-        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
-    ] = [],
+    pdf_standards: PDFStandards = [],
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
+    pretty: bool = False,
 ) -> bytes: ...
 def compile(
     input: Input,
@@ -243,28 +259,27 @@ def compile(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[
-        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
-    ] = [],
+    pdf_standards: PDFStandards = [],
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
+    pretty: bool = False,
 ) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
     Args:
         input: .typ file bytes or path to project's main .typ file.
         output (Optional[PathLike], optional): Path to save the compiled file.
-        Allowed extensions are `.pdf`, `.svg` and `.png`
+        Allowed extensions are `.pdf`, `.svg`, `.png`, and `.html`
         root (Optional[PathLike], optional): Root path for the Typst project.
         font_paths (Union[Fonts, List[Input]]): Folders with fonts.
         ignore_system_fonts (bool): Ignore system fonts
         format (Optional[str]): Output format.
-        Allowed values are `pdf`, `svg` and `png`.
+        Allowed values are `pdf`, `svg`, `png`, and `html`.
         ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
-        pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
-        One or more PDF standard profiles to apply when exporting. Allowed values are `1.7`, `a-2b`, `a-3b`.
+        pdf_standards (PDFStandards): One or more PDF standard profiles to apply when exporting.
         package_path (Optional[PathLike]): Path to load local packages from.
         timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
+        pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
@@ -279,11 +294,10 @@ def compile_with_warnings(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[
-        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
-    ] = [],
+    pdf_standards: PDFStandards = [],
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
+    pretty: bool = False,
 ) -> Tuple[None, List[TypstWarning]]: ...
 @overload
 def compile_with_warnings(
@@ -295,11 +309,10 @@ def compile_with_warnings(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[
-        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
-    ] = [],
+    pdf_standards: PDFStandards = [],
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
+    pretty: bool = False,
 ) -> Tuple[bytes, List[TypstWarning]]: ...
 def compile_with_warnings(
     input: Input,
@@ -310,28 +323,27 @@ def compile_with_warnings(
     format: Optional[OutputFormat] = None,
     ppi: Optional[float] = None,
     sys_inputs: Dict[str, str] = {},
-    pdf_standards: Optional[
-        Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
-    ] = [],
+    pdf_standards: PDFStandards = [],
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
+    pretty: bool = False,
 ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
     """Compile a Typst project and return warnings.
     Args:
         input: .typ file bytes or path to project's main .typ file.
         output (Optional[PathLike], optional): Path to save the compiled file.
-        Allowed extensions are `.pdf`, `.svg` and `.png`
+        Allowed extensions are `.pdf`, `.svg`, `.png`, and `.html`
         root (Optional[PathLike], optional): Root path for the Typst project.
         font_paths (Union[Fonts, List[Input]]): Folders with fonts.
         ignore_system_fonts (bool): Ignore system fonts
         format (Optional[str]): Output format.
-        Allowed values are `pdf`, `svg` and `png`.
+        Allowed values are `pdf`, `svg`, `png`, and `html`.
         ppi (Optional[float]): Pixels per inch for PNG output, defaults to 144.
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
-        pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
-        One or more PDF standard profiles to apply when exporting. Allowed values are `1.7`, `a-2b`, `a-3b`.
+        pdf_standards (PDFStandards): One or more PDF standard profiles to apply when exporting.
         package_path (Optional[PathLike]): Path to load local packages from.
         timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
+        pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
