@@ -159,6 +159,55 @@ def test_compile_with_custom_ppi(hello_typ_path):
     assert first_page.startswith(b"\x89PNG")
 
 
+def write_cached_test_package(package_cache_path: pathlib.Path):
+    package_dir = package_cache_path / "preview" / "typst-py-cache-test" / "0.1.0"
+    package_dir.mkdir(parents=True)
+    (package_dir / "typst.toml").write_text(
+        "\n".join(
+            [
+                "[package]",
+                'name = "typst-py-cache-test"',
+                'version = "0.1.0"',
+                'entrypoint = "lib.typ"',
+                'authors = ["typst-py"]',
+                'license = "MIT"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (package_dir / "lib.typ").write_text(
+        "#let message = [Hello from cached package]",
+        encoding="utf-8",
+    )
+
+
+def test_compile_with_package_cache_path(tmp_path):
+    package_cache_path = tmp_path / "package-cache"
+    write_cached_test_package(package_cache_path)
+    source = b'#import "@preview/typst-py-cache-test:0.1.0": message\n#message'
+
+    result = typst.compile(source, format="pdf", package_cache_path=package_cache_path)
+    assert isinstance(result, bytes)
+    assert result.startswith(b"%PDF-")
+
+    result, warnings = typst.compile_with_warnings(
+        source,
+        format="pdf",
+        package_cache_path=package_cache_path,
+    )
+    assert isinstance(result, bytes)
+    assert result.startswith(b"%PDF-")
+    assert warnings == []
+
+    assert isinstance(typst.query(source, "heading", package_cache_path=package_cache_path), str)
+    assert json.loads(typst.eval(source, "1 + 1", package_cache_path=package_cache_path)) == 2
+
+    compiler = typst.Compiler(source, package_cache_path=package_cache_path)
+    result = compiler.compile(format="pdf")
+    assert isinstance(result, bytes)
+    assert result.startswith(b"%PDF-")
+
+
 def test_compile_with_warnings(hello_typ_path):
     result, warnings = typst.compile_with_warnings(hello_typ_path, format="pdf")
     assert isinstance(result, bytes)

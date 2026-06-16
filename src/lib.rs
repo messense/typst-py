@@ -625,6 +625,7 @@ impl Compiler {
         ignore_system_fonts = false,
         sys_inputs = HashMap::new(),
         package_path = None,
+        package_cache_path = None,
     ))]
     fn new(
         input: Option<Input>,
@@ -633,6 +634,7 @@ impl Compiler {
         ignore_system_fonts: bool,
         sys_inputs: HashMap<String, String>,
         package_path: Option<PathBuf>,
+        package_cache_path: Option<PathBuf>,
     ) -> PyResult<Self> {
         let input = input.unwrap_or_else(|| Input::Bytes(Vec::new()));
         let root = if let Some(root) = root {
@@ -661,6 +663,7 @@ impl Compiler {
             ))
             .fonts(Some(fonts.0))
             .package_path(package_path)
+            .package_cache_path(package_cache_path)
             .build()
             .map_err(|msg| PyRuntimeError::new_err(msg.to_string()))?;
         Ok(Self { world })
@@ -863,6 +866,7 @@ impl Compiler {
     package_path = None,
     timestamp = None,
     pretty = false,
+    package_cache_path = None,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn compile(
@@ -879,6 +883,7 @@ fn compile(
     package_path: Option<PathBuf>,
     #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
     pretty: bool,
+    package_cache_path: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         Some(input),
@@ -887,6 +892,7 @@ fn compile(
         ignore_system_fonts,
         sys_inputs,
         package_path,
+        package_cache_path,
     )?;
     compiler.py_compile(
         py,
@@ -916,6 +922,7 @@ fn compile(
     package_path = None,
     timestamp = None,
     pretty = false,
+    package_cache_path = None,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn compile_with_warnings(
@@ -932,6 +939,7 @@ fn compile_with_warnings(
     package_path: Option<PathBuf>,
     #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
     pretty: bool,
+    package_cache_path: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         Some(input),
@@ -940,6 +948,7 @@ fn compile_with_warnings(
         ignore_system_fonts,
         sys_inputs,
         package_path,
+        package_cache_path,
     )?;
     compiler.py_compile_with_warnings(
         py,
@@ -970,6 +979,7 @@ fn compile_with_warnings(
         ignore_system_fonts = false,
         sys_inputs = HashMap::new(),
         package_path = None,
+        package_cache_path = None,
     )
 )]
 #[allow(clippy::too_many_arguments)]
@@ -985,6 +995,7 @@ fn py_query(
     ignore_system_fonts: bool,
     sys_inputs: HashMap<String, String>,
     package_path: Option<PathBuf>,
+    package_cache_path: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         Some(input),
@@ -993,6 +1004,7 @@ fn py_query(
         ignore_system_fonts,
         sys_inputs,
         package_path,
+        package_cache_path,
     )?;
     compiler.py_query(py, selector, field, one, format, None)
 }
@@ -1011,6 +1023,7 @@ fn py_query(
         ignore_system_fonts = false,
         sys_inputs = HashMap::new(),
         package_path=None,
+        package_cache_path=None,
     )
 )]
 #[allow(clippy::too_many_arguments)]
@@ -1025,6 +1038,7 @@ fn py_eval(
     ignore_system_fonts: bool,
     sys_inputs: HashMap<String, String>,
     package_path: Option<PathBuf>,
+    package_cache_path: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         Some(input),
@@ -1033,6 +1047,7 @@ fn py_eval(
         ignore_system_fonts,
         sys_inputs,
         package_path,
+        package_cache_path,
     )?;
     compiler.py_eval(py, expression, format, pretty, None)
 }
