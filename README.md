@@ -96,6 +96,21 @@ pdf = typst.compile(files, format="pdf")
 Dictionary values can also be file paths (as strings or `Path` objects), which will be
 read from disk.
 
+## Packages
+
+Use `package_path` to point Typst at a local package directory and
+`package_cache_path` to control where downloaded `@preview` packages are cached:
+
+```python
+import typst
+
+pdf = typst.compile(
+    "main.typ",
+    package_path="vendor",
+    package_cache_path="vendor",
+)
+```
+
 ## Passing values
 
 You can pass values to the compiled Typst file with the `sys_inputs` argument. For example:

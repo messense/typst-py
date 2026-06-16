@@ -248,12 +248,17 @@ fn default_font_store() -> FontStore {
     store
 }
 
-fn system_packages(package_path: Option<PathBuf>) -> SystemPackages {
+fn system_packages(
+    package_path: Option<PathBuf>,
+    package_cache_path: Option<PathBuf>,
+) -> SystemPackages {
     SystemPackages::from_parts(
         package_path
             .map(FsPackages::new)
             .or_else(FsPackages::system_data),
-        FsPackages::system_cache(),
+        package_cache_path
+            .map(FsPackages::new)
+            .or_else(FsPackages::system_cache),
         UniversePackages::new(crate::download::downloader()),
     )
 }
@@ -264,6 +269,7 @@ pub struct SystemWorldBuilder {
     fonts: Option<Arc<FontStore>>,
     inputs: Dict,
     package_path: Option<PathBuf>,
+    package_cache_path: Option<PathBuf>,
 }
 
 impl SystemWorldBuilder {
@@ -274,11 +280,17 @@ impl SystemWorldBuilder {
             fonts: None,
             inputs: Dict::default(),
             package_path: None,
+            package_cache_path: None,
         }
     }
 
     pub fn package_path(mut self, package_path: Option<PathBuf>) -> Self {
         self.package_path = package_path;
+        self
+    }
+
+    pub fn package_cache_path(mut self, package_cache_path: Option<PathBuf>) -> Self {
+        self.package_cache_path = package_cache_path;
         self
     }
 
@@ -297,7 +309,7 @@ impl SystemWorldBuilder {
             Some(fonts) => fonts,
             None => Arc::new(default_font_store()),
         };
-        let packages = system_packages(self.package_path);
+        let packages = system_packages(self.package_path, self.package_cache_path);
 
         let mut slots = FxHashMap::default();
         let mut bytes_main = None;

@@ -107,6 +107,7 @@ class Compiler:
         ignore_system_fonts: bool = False,
         sys_inputs: Dict[str, str] = {},
         package_path: Optional[PathLike] = None,
+        package_cache_path: Optional[PathLike] = None,
     ) -> None:
         """Initialize a Typst compiler.
         Args:
@@ -116,6 +117,7 @@ class Compiler:
             ignore_system_fonts (bool): Ignore system fonts.
             sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
             package_path (Optional[PathLike]): Path to load local packages from.
+            package_cache_path (Optional[PathLike]): Path to load and cache downloaded packages from.
         """
 
     def compile(
@@ -234,6 +236,7 @@ def compile(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    package_cache_path: Optional[PathLike] = None,
 ) -> None: ...
 @overload
 def compile(
@@ -249,6 +252,7 @@ def compile(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    package_cache_path: Optional[PathLike] = None,
 ) -> bytes: ...
 def compile(
     input: Input,
@@ -263,6 +267,7 @@ def compile(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    package_cache_path: Optional[PathLike] = None,
 ) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
     Args:
@@ -280,6 +285,7 @@ def compile(
         package_path (Optional[PathLike]): Path to load local packages from.
         timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
         pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
+        package_cache_path (Optional[PathLike]): Path to load and cache downloaded packages from.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
@@ -298,6 +304,7 @@ def compile_with_warnings(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    package_cache_path: Optional[PathLike] = None,
 ) -> Tuple[None, List[TypstWarning]]: ...
 @overload
 def compile_with_warnings(
@@ -313,6 +320,7 @@ def compile_with_warnings(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    package_cache_path: Optional[PathLike] = None,
 ) -> Tuple[bytes, List[TypstWarning]]: ...
 def compile_with_warnings(
     input: Input,
@@ -327,6 +335,7 @@ def compile_with_warnings(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    package_cache_path: Optional[PathLike] = None,
 ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
     """Compile a Typst project and return warnings.
     Args:
@@ -344,6 +353,7 @@ def compile_with_warnings(
         package_path (Optional[PathLike]): Path to load local packages from.
         timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
         pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
+        package_cache_path (Optional[PathLike]): Path to load and cache downloaded packages from.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
@@ -359,6 +369,7 @@ def query(
     ignore_system_fonts: bool = False,
     sys_inputs: Dict[str, str] = {},
     package_path: Optional[PathLike] = None,
+    package_cache_path: Optional[PathLike] = None,
 ) -> str:
     """Query a Typst document.
     Args:
@@ -372,6 +383,7 @@ def query(
         ignore_system_fonts (bool): Ignore system fonts
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
         package_path (Optional[PathLike]): Path to load local packages from.
+        package_cache_path (Optional[PathLike]): Path to load and cache downloaded packages from.
     Returns:
         str: Return the query result.
     """
@@ -386,6 +398,7 @@ def eval(
     ignore_system_fonts: bool = False,
     sys_inputs: Dict[str, str] = {},
     package_path: Optional[PathLike] = None,
+    package_cache_path: Optional[PathLike] = None,
 ) -> str:
     """Evaluate a Typst expression.
     Args:
@@ -398,6 +411,7 @@ def eval(
         ignore_system_fonts (bool): Ignore system fonts
         sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
         package_path (Optional[PathLike]): Path to load local packages from.
+        package_cache_path (Optional[PathLike]): Path to load and cache downloaded packages from.
     Returns:
         str: Return the serialized expression result.
     """

@@ -62,6 +62,22 @@ Usage
     # Or use Typst's newer eval-style query expression
     values = json.loads(typst.eval("hello.typ", "query(<note>).first().value"))
 
+Packages
+--------
+
+Use ``package_path`` to point Typst at a local package directory and
+``package_cache_path`` to control where downloaded ``@preview`` packages are cached:
+
+.. code-block:: python
+
+    import typst
+
+    pdf = typst.compile(
+        "main.typ",
+        package_path="vendor",
+        package_cache_path="vendor",
+    )
+
 Passing values
 ---------------
 
