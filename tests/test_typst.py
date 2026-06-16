@@ -73,6 +73,15 @@ def test_compile_to_pdf_with_naive_datetime_timestamp_raises():
         typst.compile(source, format="pdf", timestamp=timestamp)
 
 
+def test_compile_to_pdf_with_multiple_standards():
+    source = b'#set document(title: "Hello")\n= Hello'
+
+    result = typst.compile(source, format="pdf", pdf_standards=["a-2a", "ua-1"])
+
+    assert isinstance(result, bytes)
+    assert result.startswith(b"%PDF-")
+
+
 def test_compile_to_svg_bytes(hello_typ_path):
     result = typst.compile(hello_typ_path, format="svg")
     assert isinstance(result, list)
@@ -80,6 +89,27 @@ def test_compile_to_svg_bytes(hello_typ_path):
     assert isinstance(result[0], bytes)
     first_page = cast(bytes, result[0])
     assert b"<svg" in first_page
+
+
+def test_compile_pretty_export_output():
+    source = b"= Hello\nThis is a simple document."
+
+    compact_html = typst.compile(source, format="html")
+    pretty_html = typst.compile(source, format="html", pretty=True)
+    assert isinstance(compact_html, bytes)
+    assert isinstance(pretty_html, bytes)
+    assert compact_html.startswith(b"<!DOCTYPE html><html")
+    assert pretty_html.startswith(b"<!DOCTYPE html>\n<html")
+    assert len(pretty_html) > len(compact_html)
+
+    compact_svg = typst.compile(source, format="svg")
+    pretty_svg = typst.compile(source, format="svg", pretty=True)
+    compact_svg_data = compact_svg[0] if isinstance(compact_svg, list) else compact_svg
+    pretty_svg_data = pretty_svg[0] if isinstance(pretty_svg, list) else pretty_svg
+    assert isinstance(compact_svg_data, bytes)
+    assert isinstance(pretty_svg_data, bytes)
+    assert b"\n" in pretty_svg_data
+    assert len(pretty_svg_data) > len(compact_svg_data)
 
 
 def test_compile_to_png_bytes(hello_typ_path):

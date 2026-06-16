@@ -40,6 +40,13 @@ Usage
     # Also for svg
     svg_bytes = typst.compile("hello.typ", format="svg")
 
+    # Typst 0.15 minifies PDF, SVG, and HTML by default; pass pretty=True for
+    # human-readable export output.
+    svg_bytes = typst.compile("hello.typ", format="svg", pretty=True)
+
+    # Multiple compatible PDF standards can be requested at once.
+    pdf_bytes = typst.compile("hello.typ", pdf_standards=["a-2a", "ua-1"])
+
     # For multi-page export (the template is the same as the typst cli)
     images = typst.compile("hello.typ", output="hello{n}.png", format="png")
 

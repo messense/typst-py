@@ -25,6 +25,7 @@ impl SystemWorld {
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
         creation_timestamp: Option<&CreationTimestamp>,
+        pretty: bool,
     ) -> Result<CompileSuccess, CompileError> {
         if let Some(creation_timestamp) = creation_timestamp {
             self.set_now(creation_timestamp.local());
@@ -33,12 +34,13 @@ impl SystemWorld {
         let normalized_format = format.unwrap_or("pdf").to_ascii_lowercase();
 
         let Warned { output, warnings } = match normalized_format.as_str() {
-            "html" => self.compile_and_export_html(),
+            "html" => self.compile_and_export_html(pretty),
             "pdf" | "png" | "svg" => self.compile_and_export_paged(
                 normalized_format.as_str(),
                 ppi,
                 pdf_standards,
                 creation_timestamp,
+                pretty,
             ),
             _ => return Err((vec![], vec![])),
         };
@@ -56,6 +58,7 @@ impl SystemWorld {
         ppi: Option<f32>,
         pdf_standards: &[typst_pdf::PdfStandard],
         creation_timestamp: Option<&CreationTimestamp>,
+        pretty: bool,
     ) -> Warned<SourceResult<Vec<Vec<u8>>>> {
         let Warned { output, warnings } = typst::compile::<PagedDocument>(self);
         // Evict comemo cache to limit memory usage after compilation
@@ -66,10 +69,13 @@ impl SystemWorld {
                 let standards = typst_pdf::PdfStandards::new(pdf_standards)
                     .map_err(|e| eco_format!("PDF standards error: {:?}", e))
                     .at(Span::detached())?;
-                export_pdf(&document, self, standards, creation_timestamp).map(|pdf| vec![pdf])
+                export_pdf(&document, self, standards, creation_timestamp, pretty)
+                    .map(|pdf| vec![pdf])
             }
             "png" => export_image(&document, ImageExportFormat::Png, ppi).at(Span::detached()),
-            "svg" => export_image(&document, ImageExportFormat::Svg, ppi).at(Span::detached()),
+            "svg" => {
+                export_image(&document, ImageExportFormat::Svg { pretty }, ppi).at(Span::detached())
+            }
             _ => unreachable!(),
         });
 
@@ -80,13 +86,13 @@ impl SystemWorld {
     }
 
     /// Compile and export HTML format - similar to compile_and_export in typst-cli
-    fn compile_and_export_html(&mut self) -> Warned<SourceResult<Vec<Vec<u8>>>> {
+    fn compile_and_export_html(&mut self, pretty: bool) -> Warned<SourceResult<Vec<Vec<u8>>>> {
         let Warned { output, warnings } = typst::compile::<HtmlDocument>(self);
         // Evict comemo cache to limit memory usage after compilation
         comemo::evict(10);
 
         let result =
-            output.and_then(|document| export_html(&document, self).map(|html| vec![html]));
+            output.and_then(|document| export_html(&document, self, pretty).map(|html| vec![html]));
 
         Warned {
             output: result,
@@ -97,8 +103,12 @@ impl SystemWorld {
 
 /// Export to a html.
 #[inline]
-fn export_html(document: &HtmlDocument, _world: &SystemWorld) -> SourceResult<Vec<u8>> {
-    let buffer = typst_html::html(document, &typst_html::HtmlOptions::default())?;
+fn export_html(
+    document: &HtmlDocument,
+    _world: &SystemWorld,
+    pretty: bool,
+) -> SourceResult<Vec<u8>> {
+    let buffer = typst_html::html(document, &typst_html::HtmlOptions { pretty })?;
     Ok(buffer.into())
 }
 
@@ -109,6 +119,7 @@ fn export_pdf(
     _world: &SystemWorld,
     standards: typst_pdf::PdfStandards,
     creation_timestamp: Option<&CreationTimestamp>,
+    pretty: bool,
 ) -> SourceResult<Vec<u8>> {
     let timestamp = creation_timestamp
         .map(CreationTimestamp::pdf)
@@ -120,6 +131,7 @@ fn export_pdf(
             ident: typst::foundations::Smart::Auto,
             timestamp,
             standards,
+            pretty,
             ..Default::default()
         },
     )?;
@@ -142,7 +154,7 @@ fn now() -> Option<Datetime> {
 /// An image format to export in.
 enum ImageExportFormat {
     Png,
-    Svg,
+    Svg { pretty: bool },
 }
 
 /// Export the frames to PNGs or SVGs.
@@ -163,8 +175,14 @@ fn export_image(
             )
             .encode_png()
             .map_err(|err| eco_format!("failed to write PNG file ({err})"))?,
-            ImageExportFormat::Svg => {
-                let svg = typst_svg::svg(page, &typst_svg::SvgOptions::default());
+            ImageExportFormat::Svg { pretty } => {
+                let svg = typst_svg::svg(
+                    page,
+                    &typst_svg::SvgOptions {
+                        pretty,
+                        ..Default::default()
+                    },
+                );
                 svg.as_bytes().to_vec()
             }
         };
