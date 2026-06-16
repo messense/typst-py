@@ -16,6 +16,7 @@ pip install typst
 ## Usage
 
 ```python
+import datetime
 import typst
 
 
@@ -31,6 +32,10 @@ with open("hello.typ", "rb") as f:
 
 # Or return PDF content as bytes
 pdf_bytes = typst.compile("hello.typ")
+
+# Use a fixed creation timestamp for reproducible PDFs
+timestamp = datetime.datetime.fromtimestamp(0, datetime.timezone.utc)
+pdf_bytes = typst.compile("hello.typ", timestamp=timestamp)
 
 # Also for svg
 svg_bytes = typst.compile("hello.typ", format="svg")

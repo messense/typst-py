@@ -1,3 +1,4 @@
+import datetime
 import pathlib
 from types import EllipsisType
 from typing import List, Optional, TypeVar, overload, Dict, Union, Literal, Tuple
@@ -5,6 +6,7 @@ from typing import List, Optional, TypeVar, overload, Dict, Union, Literal, Tupl
 Input = TypeVar("Input", str, pathlib.Path, bytes)
 OutputFormat = Literal["pdf", "svg", "png", "html"]
 PathLike = TypeVar("PathLike", str, pathlib.Path)
+CreationTimestamp = Union[int, datetime.datetime]
 
 class TypstError(RuntimeError):
     """A structured error raised during Typst compilation or querying.
@@ -112,6 +114,7 @@ class Compiler:
             Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
         ] = [],
         root: Optional[PathLike] = None,
+        timestamp: Optional[CreationTimestamp] = None,
     ) -> Optional[Union[bytes, List[bytes]]]:
         """Compile a Typst project.
         Args:
@@ -128,6 +131,7 @@ class Compiler:
             pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
                 One or more PDF standard profiles to apply when exporting.
             root (Optional[PathLike]): Override the root path for this compilation.
+            timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
         Returns:
             Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
         """
@@ -143,6 +147,7 @@ class Compiler:
             Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
         ] = [],
         root: Optional[PathLike] = None,
+        timestamp: Optional[CreationTimestamp] = None,
     ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
         """Compile a Typst project and return both result and warnings.
         Args:
@@ -159,6 +164,7 @@ class Compiler:
             pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
                 One or more PDF standard profiles to apply when exporting.
             root (Optional[PathLike]): Override the root path for this compilation.
+            timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
         Returns:
             Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]: Return a tuple of (compiled_data, warnings).
             The first element is the compiled file as `bytes` if output is `None`, otherwise `None`.
@@ -198,6 +204,7 @@ def compile(
         Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
     ] = [],
     package_path: Optional[PathLike] = None,
+    timestamp: Optional[CreationTimestamp] = None,
 ) -> None: ...
 @overload
 def compile(
@@ -213,6 +220,7 @@ def compile(
         Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
     ] = [],
     package_path: Optional[PathLike] = None,
+    timestamp: Optional[CreationTimestamp] = None,
 ) -> bytes: ...
 def compile(
     input: Input,
@@ -227,6 +235,7 @@ def compile(
         Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
     ] = [],
     package_path: Optional[PathLike] = None,
+    timestamp: Optional[CreationTimestamp] = None,
 ) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
     Args:
@@ -243,6 +252,7 @@ def compile(
         pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
         One or more PDF standard profiles to apply when exporting. Allowed values are `1.7`, `a-2b`, `a-3b`.
         package_path (Optional[PathLike]): Path to load local packages from.
+        timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
@@ -261,6 +271,7 @@ def compile_with_warnings(
         Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
     ] = [],
     package_path: Optional[PathLike] = None,
+    timestamp: Optional[CreationTimestamp] = None,
 ) -> Tuple[None, List[TypstWarning]]: ...
 @overload
 def compile_with_warnings(
@@ -276,6 +287,7 @@ def compile_with_warnings(
         Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
     ] = [],
     package_path: Optional[PathLike] = None,
+    timestamp: Optional[CreationTimestamp] = None,
 ) -> Tuple[bytes, List[TypstWarning]]: ...
 def compile_with_warnings(
     input: Input,
@@ -290,6 +302,7 @@ def compile_with_warnings(
         Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
     ] = [],
     package_path: Optional[PathLike] = None,
+    timestamp: Optional[CreationTimestamp] = None,
 ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
     """Compile a Typst project and return warnings.
     Args:
@@ -306,6 +319,7 @@ def compile_with_warnings(
         pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
         One or more PDF standard profiles to apply when exporting. Allowed values are `1.7`, `a-2b`, `a-3b`.
         package_path (Optional[PathLike]): Path to load local packages from.
+        timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
