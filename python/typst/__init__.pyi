@@ -86,9 +86,6 @@ class Compiler:
         font_paths: Union[Fonts, List[Input]] = [],
         ignore_system_fonts: bool = False,
         sys_inputs: Dict[str, str] = {},
-        pdf_standards: Optional[
-            Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]
-        ] = [],
         package_path: Optional[PathLike] = None,
     ) -> None:
         """Initialize a Typst compiler.
@@ -98,8 +95,6 @@ class Compiler:
             font_paths (Union[Fonts, List[Input]]): Folders with fonts.
             ignore_system_fonts (bool): Ignore system fonts.
             sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
-            pdf_standards (Optional[Union[Literal["1.7", "a-2b", "a-3b"], List[Literal["1.7", "a-2b", "a-3b"]]]]):
-            One or more PDF standard profiles to apply when exporting. Allowed values are `1.7`, `a-2b`, `a-3b`.
             package_path (Optional[PathLike]): Path to load local packages from.
         """
 
@@ -188,6 +183,23 @@ class Compiler:
             root (Optional[PathLike]): Override the root path for this query.
         Returns:
             str: Return the query result.
+        """
+
+    def eval(
+        self,
+        expression: str,
+        format: Optional[Literal["json", "yaml"]] = None,
+        pretty: bool = False,
+        root: Optional[PathLike] = None,
+    ) -> str:
+        """Evaluate a Typst expression in this document's context.
+        Args:
+            expression (str): Typst code expression to evaluate.
+            format (Optional[str]): Output format, `json` or `yaml`.
+            pretty (bool): Pretty-print JSON output.
+            root (Optional[PathLike]): Override the root path for this evaluation.
+        Returns:
+            str: Return the serialized expression result.
         """
 
 @overload
@@ -350,4 +362,30 @@ def query(
         package_path (Optional[PathLike]): Path to load local packages from.
     Returns:
         str: Return the query result.
+    """
+
+def eval(
+    input: Input,
+    expression: str,
+    format: Optional[Literal["json", "yaml"]] = None,
+    pretty: bool = False,
+    root: Optional[Input] = None,
+    font_paths: Union[Fonts, List[Input]] = [],
+    ignore_system_fonts: bool = False,
+    sys_inputs: Dict[str, str] = {},
+    package_path: Optional[PathLike] = None,
+) -> str:
+    """Evaluate a Typst expression.
+    Args:
+        input: .typ file bytes or path to project's main .typ file.
+        expression (str): Typst code expression to evaluate.
+        format (Optional[str]): Output format, `json` or `yaml`.
+        pretty (bool): Pretty-print JSON output.
+        root (Optional[PathLike], optional): Root path for the Typst project.
+        font_paths (Union[Fonts, List[Input]]): Folders with fonts.
+        ignore_system_fonts (bool): Ignore system fonts
+        sys_inputs (Dict[str, str]): string key-value pairs to be passed to the document via sys.inputs
+        package_path (Optional[PathLike]): Path to load local packages from.
+    Returns:
+        str: Return the serialized expression result.
     """

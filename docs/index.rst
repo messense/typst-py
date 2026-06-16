@@ -52,6 +52,9 @@ Usage
 
     values = json.loads(typst.query("hello.typ", "<note>", field="value", one=True))
 
+    # Or use Typst's newer eval-style query expression
+    values = json.loads(typst.eval("hello.typ", "query(<note>).first().value"))
+
 Passing values
 ---------------
 
