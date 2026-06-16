@@ -5,9 +5,9 @@ use ecow::eco_format;
 use typst::WorldExt;
 use typst::diag::{At, Severity, SourceDiagnostic, SourceResult, StrResult, Warned};
 use typst::foundations::Datetime;
-use typst::layout::PagedDocument;
-use typst::syntax::{FileId, Lines, Span};
+use typst::syntax::{DiagSpan, FileId, Lines, Span};
 use typst_html::HtmlDocument;
+use typst_layout::PagedDocument;
 
 use crate::{CreationTimestamp, world::SystemWorld};
 
@@ -98,7 +98,7 @@ impl SystemWorld {
 /// Export to a html.
 #[inline]
 fn export_html(document: &HtmlDocument, _world: &SystemWorld) -> SourceResult<Vec<u8>> {
-    let buffer = typst_html::html(document)?;
+    let buffer = typst_html::html(document, &typst_html::HtmlOptions::default())?;
     Ok(buffer.into())
 }
 
@@ -152,13 +152,19 @@ fn export_image(
     ppi: Option<f32>,
 ) -> StrResult<Vec<Vec<u8>>> {
     let mut buffers = Vec::new();
-    for page in &document.pages {
+    for page in document.pages() {
         let buffer = match fmt {
-            ImageExportFormat::Png => typst_render::render(page, ppi.unwrap_or(144.0) / 72.0)
-                .encode_png()
-                .map_err(|err| eco_format!("failed to write PNG file ({err})"))?,
+            ImageExportFormat::Png => typst_render::render(
+                page,
+                &typst_render::RenderOptions {
+                    pixel_per_pt: typst::utils::Scalar::new(f64::from(ppi.unwrap_or(144.0) / 72.0)),
+                    render_bleed: false,
+                },
+            )
+            .encode_png()
+            .map_err(|err| eco_format!("failed to write PNG file ({err})"))?,
             ImageExportFormat::Svg => {
-                let svg = typst_svg::svg(page);
+                let svg = typst_svg::svg(page, &typst_svg::SvgOptions::default());
                 svg.as_bytes().to_vec()
             }
         };
@@ -190,7 +196,7 @@ pub fn format_diagnostics(
             diagnostic
                 .hints
                 .iter()
-                .map(|e| (eco_format!("hint: {e}")).into())
+                .map(|e| (eco_format!("hint: {}", e.v)).into())
                 .collect(),
         )
         .with_labels(label(world, diagnostic.span).into_iter().collect());
@@ -213,7 +219,8 @@ pub fn format_diagnostics(
 }
 
 /// Create a label for a span.
-fn label(world: &SystemWorld, span: Span) -> Option<Label<FileId>> {
+fn label(world: &SystemWorld, span: impl Into<DiagSpan>) -> Option<Label<FileId>> {
+    let span = span.into();
     Some(Label::primary(span.id()?, world.range(span)?))
 }
 
@@ -224,18 +231,21 @@ impl<'a> codespan_reporting::files::Files<'a> for SystemWorld {
 
     fn name(&'a self, id: FileId) -> CodespanResult<Self::Name> {
         let vpath = id.vpath();
-        Ok(if let Some(package) = id.package() {
-            format!("{package}{}", vpath.as_rooted_path().display())
-        } else {
-            // Try to express the path relative to the working directory.
-            vpath
-                .resolve(self.root())
-                .and_then(|abs| pathdiff::diff_paths(abs, self.workdir()))
-                .as_deref()
-                .unwrap_or_else(|| vpath.as_rootless_path())
-                .to_string_lossy()
-                .into()
-        })
+        Ok(
+            if let typst::syntax::VirtualRoot::Package(package) = id.root() {
+                format!("{package}{}", vpath.get_with_slash())
+            } else {
+                // Try to express the path relative to the working directory.
+                vpath
+                    .realize(self.root())
+                    .ok()
+                    .and_then(|abs| pathdiff::diff_paths(abs, self.workdir()))
+                    .as_deref()
+                    .unwrap_or_else(|| std::path::Path::new(vpath.get_without_slash()))
+                    .to_string_lossy()
+                    .into()
+            },
+        )
     }
 
     fn source(&'a self, id: FileId) -> CodespanResult<Self::Source> {

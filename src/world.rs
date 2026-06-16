@@ -1,4 +1,4 @@
-use chrono::{DateTime, Datelike, Local};
+use chrono::{DateTime, Datelike, FixedOffset, Local};
 use rustc_hash::FxHashMap;
 use std::collections::HashMap;
 use std::fs;
@@ -7,17 +7,17 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use typst::diag::{FileError, FileResult, StrResult};
-use typst::foundations::{Bytes, Datetime, Dict};
-use typst::syntax::{FileId, Lines, Source, VirtualPath};
+use typst::foundations::{Bytes, Datetime, Dict, Duration};
+use typst::syntax::{FileId, Lines, RootedPath, Source, VirtualPath, VirtualRoot};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, LibraryExt, World};
 use typst_kit::{
-    fonts::{FontSearcher, Fonts},
-    package::PackageStorage,
+    fonts::{self, FontStore},
+    packages::{FsPackages, SystemPackages, UniversePackages},
 };
 
-use crate::{FileData, Input, download::SlientDownload};
+use crate::{FileData, Input};
 
 /// A world that provides access to the operating system.
 pub struct SystemWorld {
@@ -31,14 +31,12 @@ pub struct SystemWorld {
     bytes_main: Option<FileId>,
     /// Typst's standard library.
     library: LazyHash<Library>,
-    /// Metadata about discovered fonts.
-    book: LazyHash<FontBook>,
     /// Locations of and storage for lazily loaded fonts.
-    fonts: Arc<typst_kit::fonts::Fonts>,
+    fonts: Arc<FontStore>,
     /// Maps file ids to source files and buffers.
     slots: Mutex<FxHashMap<FileId, FileSlot>>,
     /// Holds information about where packages are stored.
-    package_storage: PackageStorage,
+    packages: SystemPackages,
     /// The current datetime if requested. This is stored here to ensure it is
     /// always the same within one compilation. Reset between compilations.
     now: OnceLock<DateTime<Local>>,
@@ -50,7 +48,7 @@ impl World for SystemWorld {
     }
 
     fn book(&self) -> &LazyHash<FontBook> {
-        &self.book
+        self.fonts.book()
     }
 
     fn main(&self) -> FileId {
@@ -58,29 +56,38 @@ impl World for SystemWorld {
     }
 
     fn source(&self, id: FileId) -> FileResult<Source> {
-        self.slot(id, |slot| slot.source(&self.root, &self.package_storage))
+        self.slot(id, |slot| slot.source(&self.root, &self.packages))
     }
 
     fn file(&self, id: FileId) -> FileResult<Bytes> {
-        self.slot(id, |slot| slot.file(&self.root, &self.package_storage))
+        self.slot(id, |slot| slot.file(&self.root, &self.packages))
     }
 
     fn font(&self, index: usize) -> Option<Font> {
-        self.fonts.fonts[index].get()
+        self.fonts.font(index)
     }
 
-    fn today(&self, offset: Option<i64>) -> Option<Datetime> {
+    fn today(&self, offset: Option<Duration>) -> Option<Datetime> {
         let now = self.now.get_or_init(chrono::Local::now);
 
-        let naive = match offset {
-            None => now.naive_local(),
-            Some(o) => now.naive_utc() + chrono::Duration::hours(o),
+        let now = match offset {
+            None => now.fixed_offset(),
+            Some(offset) => {
+                let seconds = offset.seconds().trunc();
+                if !seconds.is_finite()
+                    || seconds < f64::from(i32::MIN)
+                    || seconds > f64::from(i32::MAX)
+                {
+                    return None;
+                }
+                now.with_timezone(&FixedOffset::east_opt(seconds as i32)?)
+            }
         };
 
         Datetime::from_ymd(
-            naive.year(),
-            naive.month().try_into().ok()?,
-            naive.day().try_into().ok()?,
+            now.year(),
+            now.month().try_into().ok()?,
+            now.day().try_into().ok()?,
         )
     }
 }
@@ -163,7 +170,11 @@ impl SystemWorld {
                 source.lines().clone()
             } else if let Some(bytes) = slot.file.get() {
                 let bytes = bytes.as_ref().expect("file is not valid");
-                Lines::try_from(bytes).expect("file is not valid utf-8")
+                Lines::new(
+                    decode_utf8(bytes.as_slice())
+                        .expect("file is not valid utf-8")
+                        .to_string(),
+                )
             } else {
                 panic!("file id does not point to any source file");
             }
@@ -208,8 +219,8 @@ fn process_files_into_slots(
             }
         };
 
-        let vpath = VirtualPath::new(format!("/{}", filename));
-        let file_id = FileId::new(None, vpath);
+        let vpath = VirtualPath::new(format!("/{}", filename)).map_err(|err| err.to_string())?;
+        let file_id = project_file_id(vpath);
 
         let slot = FileSlot::from_inline_bytes(file_id, bytes).map_err(|err| err.to_string())?;
         slots.insert(file_id, slot);
@@ -222,10 +233,35 @@ fn process_files_into_slots(
     main_file_id.ok_or_else(|| "Could not determine main file".into())
 }
 
+fn project_file_id(vpath: VirtualPath) -> FileId {
+    RootedPath::new(VirtualRoot::Project, vpath).intern()
+}
+
+fn unique_project_file_id(vpath: VirtualPath) -> FileId {
+    FileId::unique(RootedPath::new(VirtualRoot::Project, vpath))
+}
+
+fn default_font_store() -> FontStore {
+    let mut store = FontStore::new();
+    store.extend(fonts::system());
+    store.extend(fonts::embedded());
+    store
+}
+
+fn system_packages(package_path: Option<PathBuf>) -> SystemPackages {
+    SystemPackages::from_parts(
+        package_path
+            .map(FsPackages::new)
+            .or_else(FsPackages::system_data),
+        FsPackages::system_cache(),
+        UniversePackages::new(crate::download::downloader()),
+    )
+}
+
 pub struct SystemWorldBuilder {
     root: PathBuf,
     input: Input,
-    fonts: Option<Arc<Fonts>>,
+    fonts: Option<Arc<FontStore>>,
     inputs: Dict,
     package_path: Option<PathBuf>,
 }
@@ -246,7 +282,7 @@ impl SystemWorldBuilder {
         self
     }
 
-    pub fn fonts(mut self, fonts: Option<Arc<Fonts>>) -> Self {
+    pub fn fonts(mut self, fonts: Option<Arc<FontStore>>) -> Self {
         self.fonts = fonts;
         self
     }
@@ -259,8 +295,9 @@ impl SystemWorldBuilder {
     pub fn build(self) -> StrResult<SystemWorld> {
         let fonts = match self.fonts {
             Some(fonts) => fonts,
-            None => Arc::new(FontSearcher::new().include_system_fonts(true).search()),
+            None => Arc::new(default_font_store()),
         };
+        let packages = system_packages(self.package_path);
 
         let mut slots = FxHashMap::default();
         let mut bytes_main = None;
@@ -271,15 +308,16 @@ impl SystemWorldBuilder {
                 let path = path
                     .canonicalize()
                     .map_err(|err| format!("Failed to canonicalize path: {}", err))?;
-                FileId::new(
-                    None,
-                    VirtualPath::within_root(&path, &self.root)
-                        .ok_or("input file must be contained in project root")?,
-                )
+                let vpath = VirtualPath::virtualize(&self.root, &path)
+                    .map_err(|_| "input file must be contained in project root")?;
+                project_file_id(vpath)
             }
             Input::Bytes(bytes) => {
                 // Fake file ID
-                let file_id = FileId::new_fake(VirtualPath::new("<bytes>"));
+                let file_id = unique_project_file_id(
+                    VirtualPath::new("__typst_py_bytes__.typ")
+                        .expect("bytes virtual path must be valid"),
+                );
                 let mut file_slot = FileSlot::new(file_id);
                 file_slot
                     .source
@@ -305,14 +343,9 @@ impl SystemWorldBuilder {
                     .with_inputs(self.inputs)
                     .build(),
             ),
-            book: LazyHash::new(fonts.book.clone()),
             fonts,
             slots: Mutex::new(slots),
-            package_storage: PackageStorage::new(
-                None,
-                self.package_path,
-                crate::download::downloader(),
-            ),
+            packages,
             now: OnceLock::new(),
         };
         Ok(world)
@@ -357,13 +390,9 @@ impl FileSlot {
         self.file.reset();
     }
 
-    fn source(
-        &mut self,
-        project_root: &Path,
-        package_storage: &PackageStorage,
-    ) -> FileResult<Source> {
+    fn source(&mut self, project_root: &Path, packages: &SystemPackages) -> FileResult<Source> {
         self.source.get_or_init(
-            || read(self.id, project_root, package_storage),
+            || read(self.id, project_root, packages),
             |data, prev| {
                 let text = decode_utf8(&data)?;
                 if let Some(mut prev) = prev {
@@ -377,9 +406,9 @@ impl FileSlot {
     }
 
     /// Retrieve the file's bytes.
-    fn file(&mut self, project_root: &Path, package_storage: &PackageStorage) -> FileResult<Bytes> {
+    fn file(&mut self, project_root: &Path, packages: &SystemPackages) -> FileResult<Bytes> {
         self.file.get_or_init(
-            || read(self.id, project_root, package_storage),
+            || read(self.id, project_root, packages),
             |data, _| Ok(Bytes::new(data)),
         )
     }
@@ -390,10 +419,9 @@ impl SystemWorld {
         let path = path
             .canonicalize()
             .map_err(|err| format!("Failed to canonicalize path: {}", err))?;
-        let Some(vpath) = VirtualPath::within_root(&path, &self.root) else {
-            return Err("input file must be contained in project root".into());
-        };
-        self.main = FileId::new(None, vpath);
+        let vpath = VirtualPath::virtualize(&self.root, &path)
+            .map_err(|_| "input file must be contained in project root")?;
+        self.main = project_file_id(vpath);
         Ok(())
     }
 
@@ -401,7 +429,10 @@ impl SystemWorld {
         let id = if let Some(id) = self.bytes_main {
             id
         } else {
-            let id = FileId::new_fake(VirtualPath::new("<bytes>"));
+            let id = unique_project_file_id(
+                VirtualPath::new("__typst_py_bytes__.typ")
+                    .expect("bytes virtual path must be valid"),
+            );
             self.bytes_main = Some(id);
             id
         };
@@ -424,19 +455,21 @@ impl SystemWorld {
     }
 }
 /// The path of the slot on the system.
-fn system_path(root: &Path, id: FileId, package_storage: &PackageStorage) -> FileResult<PathBuf> {
+fn system_path(root: &Path, id: FileId, packages: &SystemPackages) -> FileResult<PathBuf> {
     // Determine the root path relative to which the file path
     // will be resolved.
-    let buf;
-    let mut root = root;
-    if let Some(spec) = id.package() {
-        buf = package_storage.prepare_package(spec, &mut SlientDownload(&spec))?;
-        root = &buf;
-    }
+    let package_root;
+    let root = match id.root() {
+        VirtualRoot::Project => root,
+        VirtualRoot::Package(spec) => {
+            package_root = packages.obtain(spec)?;
+            package_root.path()
+        }
+    };
 
     // Join the path to the root. If it tries to escape, deny
     // access. Note: It can still escape via symlinks.
-    id.vpath().resolve(root).ok_or(FileError::AccessDenied)
+    id.vpath().realize(root).map_err(Into::into)
 }
 
 /// Lazily processes data for a file.
@@ -507,8 +540,8 @@ impl<T: Clone> SlotCell<T> {
     }
 }
 
-fn read(id: FileId, project_root: &Path, package_storage: &PackageStorage) -> FileResult<Vec<u8>> {
-    read_from_disk(&system_path(project_root, id, package_storage)?)
+fn read(id: FileId, project_root: &Path, packages: &SystemPackages) -> FileResult<Vec<u8>> {
+    read_from_disk(&system_path(project_root, id, packages)?)
 }
 
 fn read_from_disk(path: &Path) -> FileResult<Vec<u8>> {

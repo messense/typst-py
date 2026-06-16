@@ -1,4 +1,8 @@
-use std::{env, path::PathBuf, sync::Arc};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use chrono::{DateTime, Datelike, FixedOffset, Local, Timelike, Utc};
 use pyo3::create_exception;
@@ -6,7 +10,9 @@ use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyUserWarning, PyValueError}
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDateTime, PyList, PyString, PyTuple};
 
-use query::{QueryCommand, SerializationFormat, query as typst_query};
+use query::{
+    EvalCommand, QueryCommand, SerializationFormat, eval as typst_eval, query as typst_query,
+};
 use std::collections::HashMap;
 use typst::diag::SourceDiagnostic;
 use typst::foundations::{Datetime, Dict, Value};
@@ -211,7 +217,7 @@ fn create_typst_diagnostic_details(
         let hints = error
             .hints
             .iter()
-            .map(|h| h.to_string())
+            .map(|h| h.v.to_string())
             .collect::<Vec<_>>();
 
         // Extract trace information
@@ -252,7 +258,7 @@ fn create_typst_warning_details_from_diagnostics(
             let hints = warning
                 .hints
                 .iter()
-                .map(|h| h.to_string())
+                .map(|h| h.v.to_string())
                 .collect::<Vec<_>>();
 
             // Extract trace information
@@ -355,7 +361,7 @@ impl FontInfo {
 
 #[pyclass(module = "typst._typst", from_py_object)]
 #[derive(Clone)]
-pub struct Fonts(Arc<typst_kit::fonts::Fonts>);
+pub struct Fonts(Arc<typst_kit::fonts::FontStore>, Arc<Vec<FontInfo>>);
 
 impl Fonts {
     fn font_style_to_string(style: FontStyle) -> &'static str {
@@ -363,6 +369,17 @@ impl Fonts {
             FontStyle::Normal => "normal",
             FontStyle::Italic => "italic",
             FontStyle::Oblique => "oblique",
+        }
+    }
+
+    fn to_font_info(info: &typst::text::FontInfo, path: Option<&Path>, index: u32) -> FontInfo {
+        FontInfo {
+            family: info.family.clone(),
+            style: Self::font_style_to_string(info.variant.style).to_string(),
+            weight: info.variant.weight.to_number(),
+            stretch: info.variant.stretch.to_ratio().get(),
+            path: path.map(|p| p.to_string_lossy().into_owned()),
+            index,
         }
     }
 }
@@ -380,12 +397,31 @@ impl Fonts {
         include_embedded_fonts: bool,
         font_paths: Vec<PathBuf>,
     ) -> Self {
-        let mut searcher = typst_kit::fonts::FontSearcher::new();
-        searcher
-            .include_system_fonts(include_system_fonts)
-            .include_embedded_fonts(include_embedded_fonts);
-        let fonts = searcher.search_with(&font_paths);
-        Self(Arc::new(fonts))
+        let mut fonts = typst_kit::fonts::FontStore::new();
+        let mut infos = Vec::new();
+
+        if include_system_fonts {
+            for (source, info) in typst_kit::fonts::system() {
+                infos.push(Self::to_font_info(&info, Some(&source.path), source.index));
+                fonts.push((source, info));
+            }
+        }
+
+        if include_embedded_fonts {
+            for (source, info) in typst_kit::fonts::embedded() {
+                infos.push(Self::to_font_info(&info, None, 0));
+                fonts.push((source, info));
+            }
+        }
+
+        for path in font_paths {
+            for (source, info) in typst_kit::fonts::scan(&path) {
+                infos.push(Self::to_font_info(&info, Some(&source.path), source.index));
+                fonts.push((source, info));
+            }
+        }
+
+        Self(Arc::new(fonts), Arc::new(infos))
     }
 
     /// Return a list of all font variants found
@@ -393,27 +429,7 @@ impl Fonts {
     /// Returns:
     ///     List[FontInfo]: A list of FontInfo objects for each font variant
     pub fn fonts(&self) -> Vec<FontInfo> {
-        let book = &self.0.book;
-        let font_slots = &self.0.fonts;
-
-        let mut result = Vec::new();
-        for (idx, slot) in font_slots.iter().enumerate() {
-            if let Some(info) = book.info(idx) {
-                let path = slot
-                    .path()
-                    .map(|p: &std::path::Path| p.to_string_lossy().into_owned());
-
-                result.push(FontInfo {
-                    family: info.family.clone(),
-                    style: Self::font_style_to_string(info.variant.style).to_string(),
-                    weight: info.variant.weight.to_number(),
-                    stretch: info.variant.stretch.to_ratio().get(),
-                    path,
-                    index: slot.index(),
-                });
-            }
-        }
-        result
+        self.1.as_ref().clone()
     }
 
     /// Return a sorted list of unique font family names
@@ -422,7 +438,7 @@ impl Fonts {
     ///     List[str]: A sorted list of unique font family names
     pub fn families(&self) -> Vec<String> {
         self.0
-            .book
+            .book()
             .families()
             .map(|(family, _)| family.to_string())
             .collect()
@@ -566,6 +582,31 @@ impl Compiler {
                 Err(PyRuntimeError::new_err(msg.to_string()))
             }
         }
+    }
+
+    fn eval(&mut self, expression: &str, format: Option<&str>, pretty: bool) -> PyResult<String> {
+        let format = serialization_format(format)?;
+        let result = typst_eval(
+            &mut self.world,
+            &EvalCommand {
+                expression: expression.into(),
+                format,
+                pretty,
+            },
+        );
+        match result {
+            Ok(data) => Ok(data),
+            Err(msg) => Err(PyRuntimeError::new_err(msg.to_string())),
+        }
+    }
+}
+
+fn serialization_format(format: Option<&str>) -> PyResult<SerializationFormat> {
+    let format = format.unwrap_or("json");
+    match format {
+        "json" => Ok(SerializationFormat::Json),
+        "yaml" => Ok(SerializationFormat::Yaml),
+        _ => Err(PyValueError::new_err("unsupported serialization format")),
     }
 }
 
@@ -783,6 +824,21 @@ impl Compiler {
         py.detach(|| self.query(selector, field, one, format))
             .map(|s| PyString::new(py, &s).into())
     }
+
+    /// Evaluate a Typst expression
+    #[pyo3(name = "eval", signature = (expression, format = None, pretty = false, root = None))]
+    fn py_eval(
+        &mut self,
+        py: Python<'_>,
+        expression: &str,
+        format: Option<&str>,
+        pretty: bool,
+        root: Option<PathBuf>,
+    ) -> PyResult<Py<PyAny>> {
+        self.apply_root(root)?;
+        py.detach(|| self.eval(expression, format, pretty))
+            .map(|s| PyString::new(py, &s).into())
+    }
 }
 
 /// Compile a typst document
@@ -927,6 +983,46 @@ fn py_query(
     compiler.py_query(py, selector, field, one, format, None)
 }
 
+/// Evaluate a Typst expression
+#[pyfunction]
+#[pyo3(
+    name = "eval",
+    signature = (
+        input,
+        expression,
+        format = None,
+        pretty = false,
+        root = None,
+        font_paths = FontsOrPaths::Paths(Vec::new()),
+        ignore_system_fonts = false,
+        sys_inputs = HashMap::new(),
+        package_path=None,
+    )
+)]
+#[allow(clippy::too_many_arguments)]
+fn py_eval(
+    py: Python<'_>,
+    input: Input,
+    expression: &str,
+    format: Option<&str>,
+    pretty: bool,
+    root: Option<PathBuf>,
+    font_paths: FontsOrPaths,
+    ignore_system_fonts: bool,
+    sys_inputs: HashMap<String, String>,
+    package_path: Option<PathBuf>,
+) -> PyResult<Py<PyAny>> {
+    let mut compiler = Compiler::new(
+        Some(input),
+        root,
+        font_paths,
+        ignore_system_fonts,
+        sys_inputs,
+        package_path,
+    )?;
+    compiler.py_eval(py, expression, format, pretty, None)
+}
+
 /// Python binding to typst
 #[pymodule(gil_used = false)]
 mod _typst {
@@ -936,7 +1032,7 @@ mod _typst {
     use super::{Compiler, FontInfo, Fonts, TypstError, TypstWarning};
 
     #[pymodule_export]
-    use super::{compile, compile_with_warnings, py_query as query};
+    use super::{compile, compile_with_warnings, py_eval as eval, py_query as query};
 
     #[pymodule_init]
     fn init(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {

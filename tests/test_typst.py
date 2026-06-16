@@ -355,6 +355,22 @@ def test_compiler_query(hello_typ_path):
     assert isinstance(data, list)
 
 
+def test_eval_expression(hello_typ_path):
+    result = typst.eval(hello_typ_path, "1 + 2", format="json")
+    assert json.loads(result) == 3
+
+
+def test_eval_query_replacement(hello_typ_path):
+    result = typst.eval(hello_typ_path, "query(heading).len()", format="json")
+    assert json.loads(result) > 0
+
+
+def test_compiler_eval(hello_typ_path):
+    compiler = typst.Compiler(hello_typ_path)
+    result = compiler.eval("query(heading).len()", format="json")
+    assert json.loads(result) > 0
+
+
 # Error handling tests
 def test_invalid_syntax_raises_typst_error():
     broken_content = b"#invalid syntax here"
