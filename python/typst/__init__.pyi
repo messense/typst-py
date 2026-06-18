@@ -36,6 +36,7 @@ class TypstError(RuntimeError):
 
     Attributes:
         message (str): The main error message
+        diagnostic (str): Diagnostics to help locate and diagnose the error
         hints (list[str]): List of helpful hints for resolving the error
         trace (list[str]): Stack trace information showing error location context
     """
@@ -61,6 +62,7 @@ class TypstWarning(UserWarning):
 
     Attributes:
         message (str): The main warning message
+        diagnostic (str): Diagnostics to help locate and diagnose the error
         hints (list[str]): List of helpful hints related to the warning
         trace (list[str]): Stack trace information showing warning location context
     """
