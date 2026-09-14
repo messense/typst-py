@@ -133,6 +133,7 @@ class Compiler:
         root: Optional[PathLike] = None,
         timestamp: Optional[CreationTimestamp] = None,
         pretty: bool = False,
+        merged_svg_gap: Optional[str] = None,
     ) -> Optional[Union[bytes, List[bytes]]]:
         """Compile a Typst project.
         Args:
@@ -150,6 +151,7 @@ class Compiler:
             root (Optional[PathLike]): Override the root path for this compilation.
             timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
             pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
+            merged_svg_gap (Optional[str]): Gap size for merging SVG pages (e.g., '1mm', '10pt'). Only used when format is 'svg'.
         Returns:
             Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
         """
@@ -165,6 +167,7 @@ class Compiler:
         root: Optional[PathLike] = None,
         timestamp: Optional[CreationTimestamp] = None,
         pretty: bool = False,
+        merged_svg_gap: Optional[str] = None,
     ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
         """Compile a Typst project and return both result and warnings.
         Args:
@@ -182,6 +185,7 @@ class Compiler:
             root (Optional[PathLike]): Override the root path for this compilation.
             timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
             pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
+            merged_svg_gap (Optional[str]): Gap size for merging SVG pages (e.g., '1mm', '10pt'). Only used when format is 'svg'.
         Returns:
             Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]: Return a tuple of (compiled_data, warnings).
             The first element is the compiled file as `bytes` if output is `None`, otherwise `None`.
@@ -238,6 +242,7 @@ def compile(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    merged_svg_gap: Optional[str] = None,
     package_cache_path: Optional[PathLike] = None,
 ) -> None: ...
 @overload
@@ -254,6 +259,7 @@ def compile(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    merged_svg_gap: Optional[str] = None,
     package_cache_path: Optional[PathLike] = None,
 ) -> bytes: ...
 def compile(
@@ -269,6 +275,7 @@ def compile(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    merged_svg_gap: Optional[str] = None,
     package_cache_path: Optional[PathLike] = None,
 ) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
@@ -287,6 +294,7 @@ def compile(
         package_path (Optional[PathLike]): Path to load local packages from.
         timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
         pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
+        merged_svg_gap (Optional[str]): Gap size for merging SVG pages (e.g., '1mm', '10pt'). Only used when format is 'svg'.
         package_cache_path (Optional[PathLike]): Path to load and cache downloaded packages from.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
@@ -306,6 +314,7 @@ def compile_with_warnings(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    merged_svg_gap: Optional[str] = None,
     package_cache_path: Optional[PathLike] = None,
 ) -> Tuple[None, List[TypstWarning]]: ...
 @overload
@@ -322,6 +331,7 @@ def compile_with_warnings(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    merged_svg_gap: Optional[str] = None,
     package_cache_path: Optional[PathLike] = None,
 ) -> Tuple[bytes, List[TypstWarning]]: ...
 def compile_with_warnings(
@@ -337,6 +347,7 @@ def compile_with_warnings(
     package_path: Optional[PathLike] = None,
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
+    merged_svg_gap: Optional[str] = None,
     package_cache_path: Optional[PathLike] = None,
 ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
     """Compile a Typst project and return warnings.
@@ -355,6 +366,7 @@ def compile_with_warnings(
         package_path (Optional[PathLike]): Path to load local packages from.
         timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
         pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
+        merged_svg_gap (Optional[str]): Gap size for merging SVG pages (e.g., '1mm', '10pt'). Only used when format is 'svg'.
         package_cache_path (Optional[PathLike]): Path to load and cache downloaded packages from.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.

@@ -9,6 +9,7 @@ use pyo3::create_exception;
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyUserWarning, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDateTime, PyList, PyString, PyTuple};
+use typst::layout::Abs;
 
 use query::{
     EvalCommand, QueryCommand, SerializationFormat, eval as typst_eval, query as typst_query,
@@ -503,6 +504,7 @@ impl Compiler {
         pdf_standards: &[typst_pdf::PdfStandard],
         creation_timestamp: Option<&CreationTimestamp>,
         pretty: bool,
+        merged_svg_gap: Option<Abs>,
     ) -> Result<Vec<Vec<u8>>, TypstDiagnosticDetails> {
         let ret = match self.world.compile_with_diagnostics(
             format,
@@ -510,6 +512,7 @@ impl Compiler {
             pdf_standards,
             creation_timestamp,
             pretty,
+            merged_svg_gap,
         ) {
             Ok((buffer, _warnings)) => Ok(buffer), // Ignore warnings for backward compatibility
             Err((errors, warnings)) => Err(create_typst_diagnostic_details(
@@ -530,6 +533,7 @@ impl Compiler {
         pdf_standards: &[typst_pdf::PdfStandard],
         creation_timestamp: Option<&CreationTimestamp>,
         pretty: bool,
+        merged_svg_gap: Option<Abs>,
     ) -> Result<CompilationResult, TypstDiagnosticDetails> {
         let ret = match self.world.compile_with_diagnostics(
             format,
@@ -537,6 +541,7 @@ impl Compiler {
             pdf_standards,
             creation_timestamp,
             pretty,
+            merged_svg_gap,
         ) {
             Ok((buffer, warnings)) => {
                 let warning_details =
@@ -671,7 +676,7 @@ impl Compiler {
 
     /// Compile a typst file to PDF
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None, pretty = false))]
+    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None, pretty = false, merged_svg_gap = None))]
     fn py_compile(
         &mut self,
         py: Python<'_>,
@@ -684,6 +689,7 @@ impl Compiler {
         root: Option<PathBuf>,
         #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
         pretty: bool,
+        #[pyo3(from_py_with = extract_merged_svg_gap)] merged_svg_gap: Option<Abs>,
     ) -> PyResult<Py<PyAny>> {
         self.apply_root(root)?;
         self.apply_input(input)?;
@@ -710,7 +716,16 @@ impl Compiler {
             };
 
             let buffers = py
-                .detach(|| self.compile(format, ppi, &pdf_standards, timestamp.as_ref(), pretty))
+                .detach(|| {
+                    self.compile(
+                        format,
+                        ppi,
+                        &pdf_standards,
+                        timestamp.as_ref(),
+                        pretty,
+                        merged_svg_gap,
+                    )
+                })
                 .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
 
             let can_handle_multiple =
@@ -734,7 +749,16 @@ impl Compiler {
             Ok(py.None())
         } else {
             let buffers = py
-                .detach(|| self.compile(format, ppi, &pdf_standards, timestamp.as_ref(), pretty))
+                .detach(|| {
+                    self.compile(
+                        format,
+                        ppi,
+                        &pdf_standards,
+                        timestamp.as_ref(),
+                        pretty,
+                        merged_svg_gap,
+                    )
+                })
                 .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
             if buffers.len() == 1 {
                 // Return a single buffer as a single byte string
@@ -751,7 +775,7 @@ impl Compiler {
 
     /// Compile a typst file and return both result and warnings
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None, pretty = false))]
+    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None, pretty = false, merged_svg_gap = None))]
     fn py_compile_with_warnings(
         &mut self,
         py: Python<'_>,
@@ -764,13 +788,21 @@ impl Compiler {
         root: Option<PathBuf>,
         #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
         pretty: bool,
+        #[pyo3(from_py_with = extract_merged_svg_gap)] merged_svg_gap: Option<Abs>,
     ) -> PyResult<Py<PyAny>> {
         self.apply_root(root)?;
         self.apply_input(input)?;
         self.apply_sys_inputs(sys_inputs);
         let result = py
             .detach(|| {
-                self.compile_with_warnings(format, ppi, &pdf_standards, timestamp.as_ref(), pretty)
+                self.compile_with_warnings(
+                    format,
+                    ppi,
+                    &pdf_standards,
+                    timestamp.as_ref(),
+                    pretty,
+                    merged_svg_gap,
+                )
             })
             .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
 
@@ -866,6 +898,7 @@ impl Compiler {
     package_path = None,
     timestamp = None,
     pretty = false,
+    merged_svg_gap = None,
     package_cache_path = None,
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -883,6 +916,7 @@ fn compile(
     package_path: Option<PathBuf>,
     #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
     pretty: bool,
+    #[pyo3(from_py_with = extract_merged_svg_gap)] merged_svg_gap: Option<Abs>,
     package_cache_path: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
@@ -905,10 +939,10 @@ fn compile(
         None,
         timestamp,
         pretty,
+        merged_svg_gap,
     )
 }
 
-/// Compile a typst file and return both result and warnings
 #[pyfunction]
 #[pyo3(signature = (
     input,
@@ -922,6 +956,7 @@ fn compile(
     package_path = None,
     timestamp = None,
     pretty = false,
+    merged_svg_gap = None,
     package_cache_path = None,
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -939,6 +974,7 @@ fn compile_with_warnings(
     package_path: Option<PathBuf>,
     #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
     pretty: bool,
+    #[pyo3(from_py_with = extract_merged_svg_gap)] merged_svg_gap: Option<Abs>,
     package_cache_path: Option<PathBuf>,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
@@ -961,6 +997,7 @@ fn compile_with_warnings(
         None,
         timestamp,
         pretty,
+        merged_svg_gap,
     )
 }
 
@@ -1102,4 +1139,57 @@ fn extract_pdf_standards(obj: &Bound<'_, PyAny>) -> PyResult<Vec<typst_pdf::PdfS
     } else {
         extract_pdf_standard(obj).map(|s| vec![s])
     }
+}
+
+fn extract_merged_svg_gap(obj: &Bound<'_, PyAny>) -> PyResult<Option<Abs>> {
+    if obj.is_none() {
+        return Ok(None);
+    }
+
+    let gap_str = obj.extract::<String>()?;
+    let gap_str = gap_str.trim();
+
+    // Find where the numeric part ends and unit starts
+    let split_idx = gap_str
+        .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+        .unwrap_or(gap_str.len());
+
+    if split_idx == 0 {
+        return Err(PyValueError::new_err(
+            "merged_svg_gap must start with a number",
+        ));
+    }
+
+    let num_str = &gap_str[..split_idx];
+    let unit_str = &gap_str[split_idx..].trim();
+
+    let value: f64 = num_str
+        .parse()
+        .map_err(|_| PyValueError::new_err(format!("invalid merged_svg_gap value: {}", num_str)))?;
+
+    if value < 0.0 {
+        return Err(PyValueError::new_err("merged_svg_gap must be non-negative"));
+    }
+
+    // Convert to Abs based on unit (must be explicit)
+    if unit_str.is_empty() {
+        return Err(PyValueError::new_err(
+            "merged_svg_gap must include a unit (pt, mm, cm, or in)",
+        ));
+    }
+
+    let abs = match unit_str.to_lowercase().as_str() {
+        "pt" => Abs::pt(value),
+        "mm" => Abs::mm(value),
+        "cm" => Abs::cm(value),
+        "in" => Abs::inches(value),
+        _ => {
+            return Err(PyValueError::new_err(format!(
+                "unknown unit in merged_svg_gap: {} (supported: pt, mm, cm, in)",
+                unit_str
+            )));
+        }
+    };
+
+    Ok(Some(abs))
 }

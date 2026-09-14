@@ -2,12 +2,13 @@ use chrono::{Datelike, Timelike};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term::{self, termcolor};
 use ecow::eco_format;
+use typst::layout::Abs;
 use typst::WorldExt;
 use typst::diag::{At, Severity, SourceDiagnostic, SourceResult, StrResult, Warned};
 use typst::foundations::Datetime;
 use typst::syntax::{DiagSpan, FileId, Lines, Span};
 use typst_html::HtmlDocument;
-use typst_layout::PagedDocument;
+use typst_layout::{PagedDocument};
 
 use crate::{CreationTimestamp, world::SystemWorld};
 
@@ -26,6 +27,7 @@ impl SystemWorld {
         pdf_standards: &[typst_pdf::PdfStandard],
         creation_timestamp: Option<&CreationTimestamp>,
         pretty: bool,
+        merged_svg_gap: Option<Abs>,
     ) -> Result<CompileSuccess, CompileError> {
         if let Some(creation_timestamp) = creation_timestamp {
             self.set_now(creation_timestamp.local());
@@ -33,9 +35,10 @@ impl SystemWorld {
 
         let normalized_format = format.unwrap_or("pdf").to_ascii_lowercase();
 
-        let Warned { output, warnings } = match normalized_format.as_str() {
-            "html" => self.compile_and_export_html(pretty),
-            "pdf" | "png" | "svg" => self.compile_and_export_paged(
+        let Warned { output, warnings } = match (normalized_format.as_str(), merged_svg_gap) {
+            ("html", _) => self.compile_and_export_html(pretty),
+            ("svg", Some(gap)) => self.compile_and_export_svg(pretty, gap),
+            ("pdf" | "png" | "svg", _) => self.compile_and_export_paged(
                 normalized_format.as_str(),
                 ppi,
                 pdf_standards,
@@ -99,6 +102,20 @@ impl SystemWorld {
             warnings,
         }
     }
+
+    fn compile_and_export_svg(&mut self, pretty: bool, gap: Abs) -> Warned<SourceResult<Vec<Vec<u8>>>> {
+        let Warned { output, warnings } = typst::compile::<PagedDocument>(self);
+        // Evict comemo cache to limit memory usage after compilation
+        comemo::evict(10);
+
+        let result =
+            output.and_then(|document| export_merged_svg(&document, self, pretty, gap).map(|svg| vec![svg]));
+
+        Warned {
+            output: result,
+            warnings,
+        }
+    }
 }
 
 /// Export to a html.
@@ -109,6 +126,17 @@ fn export_html(
     pretty: bool,
 ) -> SourceResult<Vec<u8>> {
     let buffer = typst_html::html(document, &typst_html::HtmlOptions { pretty })?;
+    Ok(buffer.into())
+}
+
+#[inline]
+fn export_merged_svg(
+    document: &PagedDocument,
+    _world: &SystemWorld,
+    pretty: bool,
+    gap: Abs,
+) -> SourceResult<Vec<u8>> {
+    let buffer = typst_svg::svg_merged(document, &typst_svg::SvgOptions {render_bleed:false, pretty }, gap);
     Ok(buffer.into())
 }
 
