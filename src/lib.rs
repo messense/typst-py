@@ -503,6 +503,7 @@ impl Compiler {
         pdf_standards: &[typst_pdf::PdfStandard],
         creation_timestamp: Option<&CreationTimestamp>,
         pretty: bool,
+        pdf_tags: bool,
     ) -> Result<Vec<Vec<u8>>, TypstDiagnosticDetails> {
         let ret = match self.world.compile_with_diagnostics(
             format,
@@ -510,6 +511,7 @@ impl Compiler {
             pdf_standards,
             creation_timestamp,
             pretty,
+            pdf_tags,
         ) {
             Ok((buffer, _warnings)) => Ok(buffer), // Ignore warnings for backward compatibility
             Err((errors, warnings)) => Err(create_typst_diagnostic_details(
@@ -530,6 +532,7 @@ impl Compiler {
         pdf_standards: &[typst_pdf::PdfStandard],
         creation_timestamp: Option<&CreationTimestamp>,
         pretty: bool,
+        pdf_tags: bool,
     ) -> Result<CompilationResult, TypstDiagnosticDetails> {
         let ret = match self.world.compile_with_diagnostics(
             format,
@@ -537,6 +540,7 @@ impl Compiler {
             pdf_standards,
             creation_timestamp,
             pretty,
+            pdf_tags,
         ) {
             Ok((buffer, warnings)) => {
                 let warning_details =
@@ -671,7 +675,7 @@ impl Compiler {
 
     /// Compile a typst file to PDF
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None, pretty = false))]
+    #[pyo3(name = "compile", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None, pretty = false, pdf_tags = true))]
     fn py_compile(
         &mut self,
         py: Python<'_>,
@@ -684,6 +688,7 @@ impl Compiler {
         root: Option<PathBuf>,
         #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
         pretty: bool,
+        pdf_tags: bool,
     ) -> PyResult<Py<PyAny>> {
         self.apply_root(root)?;
         self.apply_input(input)?;
@@ -710,7 +715,16 @@ impl Compiler {
             };
 
             let buffers = py
-                .detach(|| self.compile(format, ppi, &pdf_standards, timestamp.as_ref(), pretty))
+                .detach(|| {
+                    self.compile(
+                        format,
+                        ppi,
+                        &pdf_standards,
+                        timestamp.as_ref(),
+                        pretty,
+                        pdf_tags,
+                    )
+                })
                 .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
 
             let can_handle_multiple =
@@ -734,7 +748,16 @@ impl Compiler {
             Ok(py.None())
         } else {
             let buffers = py
-                .detach(|| self.compile(format, ppi, &pdf_standards, timestamp.as_ref(), pretty))
+                .detach(|| {
+                    self.compile(
+                        format,
+                        ppi,
+                        &pdf_standards,
+                        timestamp.as_ref(),
+                        pretty,
+                        pdf_tags,
+                    )
+                })
                 .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
             if buffers.len() == 1 {
                 // Return a single buffer as a single byte string
@@ -751,7 +774,7 @@ impl Compiler {
 
     /// Compile a typst file and return both result and warnings
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None, pretty = false))]
+    #[pyo3(name = "compile_with_warnings", signature = (input = None, output = None, format = None, ppi = None, sys_inputs = SysInputsOption::Keep, pdf_standards = Vec::new(), root = None, timestamp = None, pretty = false, pdf_tags = true))]
     fn py_compile_with_warnings(
         &mut self,
         py: Python<'_>,
@@ -764,13 +787,21 @@ impl Compiler {
         root: Option<PathBuf>,
         #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
         pretty: bool,
+        pdf_tags: bool,
     ) -> PyResult<Py<PyAny>> {
         self.apply_root(root)?;
         self.apply_input(input)?;
         self.apply_sys_inputs(sys_inputs);
         let result = py
             .detach(|| {
-                self.compile_with_warnings(format, ppi, &pdf_standards, timestamp.as_ref(), pretty)
+                self.compile_with_warnings(
+                    format,
+                    ppi,
+                    &pdf_standards,
+                    timestamp.as_ref(),
+                    pretty,
+                    pdf_tags,
+                )
             })
             .map_err(|err_details| err_details.into_py_err(py).unwrap())?;
 
@@ -867,6 +898,7 @@ impl Compiler {
     timestamp = None,
     pretty = false,
     package_cache_path = None,
+    pdf_tags = true,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn compile(
@@ -884,6 +916,7 @@ fn compile(
     #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
     pretty: bool,
     package_cache_path: Option<PathBuf>,
+    pdf_tags: bool,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         Some(input),
@@ -905,6 +938,7 @@ fn compile(
         None,
         timestamp,
         pretty,
+        pdf_tags,
     )
 }
 
@@ -923,6 +957,7 @@ fn compile(
     timestamp = None,
     pretty = false,
     package_cache_path = None,
+    pdf_tags = true,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn compile_with_warnings(
@@ -940,6 +975,7 @@ fn compile_with_warnings(
     #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
     pretty: bool,
     package_cache_path: Option<PathBuf>,
+    pdf_tags: bool,
 ) -> PyResult<Py<PyAny>> {
     let mut compiler = Compiler::new(
         Some(input),
@@ -961,6 +997,7 @@ fn compile_with_warnings(
         None,
         timestamp,
         pretty,
+        pdf_tags,
     )
 }
 
