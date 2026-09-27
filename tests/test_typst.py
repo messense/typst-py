@@ -3,6 +3,8 @@ import pytest
 import pathlib
 import tempfile
 import json
+import re
+import zlib
 from typing import cast
 
 import typst
@@ -80,6 +82,134 @@ def test_compile_to_pdf_with_multiple_standards():
 
     assert isinstance(result, bytes)
     assert result.startswith(b"%PDF-")
+
+
+def assert_pdf_tags(data: bytes, tagged: bool):
+    assert data.startswith(b"%PDF-")
+    assert (b"/StructTreeRoot" in data) is tagged
+    assert (re.search(rb"/MarkInfo\s*<<\s*/Marked\s+true", data) is not None) is tagged
+
+
+def pdf_text(data: bytes):
+    """Collect text objects and ToUnicode maps from a PDF's Flate streams."""
+    text = []
+    for stream in re.findall(rb"stream\r?\n(.*?)\r?\nendstream", data, re.DOTALL):
+        try:
+            content = zlib.decompress(stream)
+        except zlib.error:
+            continue
+        if b"begincmap" in content:
+            text.append(content)
+        else:
+            text.extend(re.findall(rb"\bBT\b.*?\bET\b", content, re.DOTALL))
+    return text
+
+
+def test_compile_to_pdf_without_tags(hello_typ_path):
+    tagged = typst.compile(hello_typ_path, format="pdf", timestamp=0)
+    explicit = typst.compile(hello_typ_path, format="pdf", timestamp=0, pdf_tags=True)
+    untagged = typst.compile(hello_typ_path, format="pdf", timestamp=0, pdf_tags=False)
+
+    assert isinstance(tagged, bytes)
+    assert isinstance(untagged, bytes)
+    assert tagged == explicit
+    assert_pdf_tags(tagged, True)
+    assert_pdf_tags(untagged, False)
+    assert b"/MarkInfo" not in untagged
+    assert pdf_text(untagged)
+    assert pdf_text(untagged) == pdf_text(tagged)
+    assert len(untagged) < len(tagged)
+
+
+@pytest.mark.parametrize(
+    "compile_pdf",
+    [
+        lambda src, **kw: typst.compile(src, **kw),
+        lambda src, **kw: typst.compile_with_warnings(src, **kw)[0],
+        lambda src, **kw: typst.Compiler(src).compile(**kw),
+        lambda src, **kw: typst.Compiler().compile(input=src, **kw),
+        lambda src, **kw: typst.Compiler(src).compile_with_warnings(**kw)[0],
+    ],
+    ids=[
+        "compile",
+        "compile_with_warnings",
+        "Compiler.compile",
+        "Compiler.compile(input)",
+        "Compiler.compile_with_warnings",
+    ],
+)
+@pytest.mark.parametrize("use_file", [True, False])
+@pytest.mark.parametrize("pdf_tags", [True, False])
+def test_compile_to_pdf_tags_option(compile_pdf, use_file, pdf_tags, tmp_path):
+    source = b"= Hello\nThis is a simple document."
+
+    if use_file:
+        output_path = tmp_path / "output.pdf"
+        result = compile_pdf(
+            source, output=output_path, format="pdf", pdf_tags=pdf_tags
+        )
+        assert result is None
+        result = output_path.read_bytes()
+    else:
+        result = compile_pdf(source, format="pdf", pdf_tags=pdf_tags)
+
+    assert isinstance(result, bytes)
+    assert_pdf_tags(result, pdf_tags)
+
+
+@pytest.mark.parametrize(
+    "pdf_standards, name",
+    [
+        ("a-1a", "PDF/A-1a"),
+        ("a-2a", "PDF/A-2a"),
+        ("a-3a", "PDF/A-3a"),
+        ("ua-1", "PDF/UA-1"),
+        (["1.7", "ua-1"], "PDF/UA-1"),
+    ],
+)
+def test_compile_to_pdf_without_tags_rejects_accessible_standards(pdf_standards, name):
+    source = b'#set document(title: "Hello")\n= Hello'
+    message = f"cannot disable PDF tags when exporting a {name} document"
+
+    with pytest.raises(typst.TypstError, match=re.escape(message)) as exc_info:
+        typst.compile(source, format="pdf", pdf_standards=pdf_standards, pdf_tags=False)
+    assert exc_info.value.message == message
+
+    with pytest.raises(typst.TypstError, match=re.escape(message)):
+        typst.compile_with_warnings(
+            source, format="pdf", pdf_standards=pdf_standards, pdf_tags=False
+        )
+
+    with pytest.raises(typst.TypstError, match=re.escape(message)):
+        typst.Compiler(source).compile(
+            format="pdf", pdf_standards=pdf_standards, pdf_tags=False
+        )
+
+
+@pytest.mark.parametrize("pdf_standards", ["1.7", "a-2b", "a-3b", "a-4"])
+def test_compile_to_pdf_without_tags_with_standards(pdf_standards):
+    source = b'#set document(title: "Hello")\n= Hello'
+
+    result = typst.compile(
+        source, format="pdf", pdf_standards=pdf_standards, pdf_tags=False
+    )
+
+    assert isinstance(result, bytes)
+    assert_pdf_tags(result, False)
+
+
+@pytest.mark.parametrize("format_name", ["svg", "png", "html"])
+def test_pdf_tags_is_ignored_for_other_formats(format_name):
+    source = b"= Hello\nThis is a simple document."
+
+    default = typst.compile(source, format=format_name)
+    untagged = typst.compile(source, format=format_name, pdf_tags=False)
+    untagged_ua = typst.compile(
+        source, format=format_name, pdf_standards="ua-1", pdf_tags=False
+    )
+
+    assert default == untagged
+    assert default == untagged_ua
 
 
 def test_compile_to_svg_bytes(hello_typ_path):

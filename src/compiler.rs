@@ -3,7 +3,7 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term::{self, termcolor};
 use ecow::eco_format;
 use typst::WorldExt;
-use typst::diag::{At, Severity, SourceDiagnostic, SourceResult, StrResult, Warned};
+use typst::diag::{At, Severity, SourceDiagnostic, SourceResult, StrResult, Warned, bail};
 use typst::foundations::Datetime;
 use typst::syntax::{DiagSpan, FileId, Lines, Span};
 use typst_html::HtmlDocument;
@@ -26,6 +26,7 @@ impl SystemWorld {
         pdf_standards: &[typst_pdf::PdfStandard],
         creation_timestamp: Option<&CreationTimestamp>,
         pretty: bool,
+        pdf_tags: bool,
     ) -> Result<CompileSuccess, CompileError> {
         if let Some(creation_timestamp) = creation_timestamp {
             self.set_now(creation_timestamp.local());
@@ -41,6 +42,7 @@ impl SystemWorld {
                 pdf_standards,
                 creation_timestamp,
                 pretty,
+                pdf_tags,
             ),
             _ => return Err((vec![], vec![])),
         };
@@ -59,6 +61,7 @@ impl SystemWorld {
         pdf_standards: &[typst_pdf::PdfStandard],
         creation_timestamp: Option<&CreationTimestamp>,
         pretty: bool,
+        pdf_tags: bool,
     ) -> Warned<SourceResult<Vec<Vec<u8>>>> {
         let Warned { output, warnings } = typst::compile::<PagedDocument>(self);
         // Evict comemo cache to limit memory usage after compilation
@@ -66,11 +69,19 @@ impl SystemWorld {
 
         let result = output.and_then(|document| match format {
             "pdf" => {
+                check_pdf_tags(pdf_standards, pdf_tags).at(Span::detached())?;
                 let standards = typst_pdf::PdfStandards::new(pdf_standards)
                     .map_err(|e| eco_format!("PDF standards error: {:?}", e))
                     .at(Span::detached())?;
-                export_pdf(&document, self, standards, creation_timestamp, pretty)
-                    .map(|pdf| vec![pdf])
+                export_pdf(
+                    &document,
+                    self,
+                    standards,
+                    creation_timestamp,
+                    pretty,
+                    pdf_tags,
+                )
+                .map(|pdf| vec![pdf])
             }
             "png" => export_image(&document, ImageExportFormat::Png, ppi).at(Span::detached()),
             "svg" => {
@@ -120,6 +131,7 @@ fn export_pdf(
     standards: typst_pdf::PdfStandards,
     creation_timestamp: Option<&CreationTimestamp>,
     pretty: bool,
+    pdf_tags: bool,
 ) -> SourceResult<Vec<u8>> {
     let timestamp = creation_timestamp
         .map(CreationTimestamp::pdf)
@@ -131,11 +143,32 @@ fn export_pdf(
             ident: typst::foundations::Smart::Auto,
             timestamp,
             standards,
+            tagged: pdf_tags,
             pretty,
             ..Default::default()
         },
     )?;
     Ok(buffer)
+}
+
+/// Reject disabling PDF tags for standards that require them, like the typst-cli
+/// does for `--no-pdf-tags`.
+fn check_pdf_tags(pdf_standards: &[typst_pdf::PdfStandard], pdf_tags: bool) -> StrResult<()> {
+    const ACCESSIBLE: &[(typst_pdf::PdfStandard, &str)] = &[
+        (typst_pdf::PdfStandard::A_1a, "PDF/A-1a"),
+        (typst_pdf::PdfStandard::A_2a, "PDF/A-2a"),
+        (typst_pdf::PdfStandard::A_3a, "PDF/A-3a"),
+        (typst_pdf::PdfStandard::Ua_1, "PDF/UA-1"),
+    ];
+
+    if !pdf_tags {
+        for (standard, name) in ACCESSIBLE {
+            if pdf_standards.contains(standard) {
+                bail!("cannot disable PDF tags when exporting a {name} document");
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Get the current date and time in UTC.

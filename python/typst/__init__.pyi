@@ -133,6 +133,7 @@ class Compiler:
         root: Optional[PathLike] = None,
         timestamp: Optional[CreationTimestamp] = None,
         pretty: bool = False,
+        pdf_tags: bool = True,
     ) -> Optional[Union[bytes, List[bytes]]]:
         """Compile a Typst project.
         Args:
@@ -150,6 +151,7 @@ class Compiler:
             root (Optional[PathLike]): Override the root path for this compilation.
             timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
             pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
+            pdf_tags (bool): Write a tagged PDF for accessibility. Pass False to omit tags, equivalent to `--no-pdf-tags`. Cannot be disabled for PDF/A-1a, PDF/A-2a, PDF/A-3a, and PDF/UA-1. Ignored for SVG, PNG, and HTML.
         Returns:
             Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
         """
@@ -165,6 +167,7 @@ class Compiler:
         root: Optional[PathLike] = None,
         timestamp: Optional[CreationTimestamp] = None,
         pretty: bool = False,
+        pdf_tags: bool = True,
     ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
         """Compile a Typst project and return both result and warnings.
         Args:
@@ -182,6 +185,7 @@ class Compiler:
             root (Optional[PathLike]): Override the root path for this compilation.
             timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
             pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
+            pdf_tags (bool): Write a tagged PDF for accessibility. Pass False to omit tags, equivalent to `--no-pdf-tags`. Cannot be disabled for PDF/A-1a, PDF/A-2a, PDF/A-3a, and PDF/UA-1. Ignored for SVG, PNG, and HTML.
         Returns:
             Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]: Return a tuple of (compiled_data, warnings).
             The first element is the compiled file as `bytes` if output is `None`, otherwise `None`.
@@ -239,6 +243,7 @@ def compile(
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
     package_cache_path: Optional[PathLike] = None,
+    pdf_tags: bool = True,
 ) -> None: ...
 @overload
 def compile(
@@ -255,6 +260,7 @@ def compile(
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
     package_cache_path: Optional[PathLike] = None,
+    pdf_tags: bool = True,
 ) -> bytes: ...
 def compile(
     input: Input,
@@ -270,6 +276,7 @@ def compile(
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
     package_cache_path: Optional[PathLike] = None,
+    pdf_tags: bool = True,
 ) -> Optional[Union[bytes, List[bytes]]]:
     """Compile a Typst project.
     Args:
@@ -288,6 +295,7 @@ def compile(
         timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
         pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
         package_cache_path (Optional[PathLike]): Path to load and cache downloaded packages from.
+        pdf_tags (bool): Write a tagged PDF for accessibility. Pass False to omit tags, equivalent to `--no-pdf-tags`. Cannot be disabled for PDF/A-1a, PDF/A-2a, PDF/A-3a, and PDF/UA-1. Ignored for SVG, PNG, and HTML.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """
@@ -307,6 +315,7 @@ def compile_with_warnings(
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
     package_cache_path: Optional[PathLike] = None,
+    pdf_tags: bool = True,
 ) -> Tuple[None, List[TypstWarning]]: ...
 @overload
 def compile_with_warnings(
@@ -323,6 +332,7 @@ def compile_with_warnings(
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
     package_cache_path: Optional[PathLike] = None,
+    pdf_tags: bool = True,
 ) -> Tuple[bytes, List[TypstWarning]]: ...
 def compile_with_warnings(
     input: Input,
@@ -338,6 +348,7 @@ def compile_with_warnings(
     timestamp: Optional[CreationTimestamp] = None,
     pretty: bool = False,
     package_cache_path: Optional[PathLike] = None,
+    pdf_tags: bool = True,
 ) -> Tuple[Optional[Union[bytes, List[bytes]]], List[TypstWarning]]:
     """Compile a Typst project and return warnings.
     Args:
@@ -356,6 +367,7 @@ def compile_with_warnings(
         timestamp (Optional[CreationTimestamp]): Creation timestamp as timezone-aware fixed-offset datetime.datetime or UNIX seconds, equivalent to SOURCE_DATE_EPOCH.
         pretty (bool): Pretty-print PDF, SVG, and HTML output. Ignored for PNG.
         package_cache_path (Optional[PathLike]): Path to load and cache downloaded packages from.
+        pdf_tags (bool): Write a tagged PDF for accessibility. Pass False to omit tags, equivalent to `--no-pdf-tags`. Cannot be disabled for PDF/A-1a, PDF/A-2a, PDF/A-3a, and PDF/UA-1. Ignored for SVG, PNG, and HTML.
     Returns:
         Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
     """

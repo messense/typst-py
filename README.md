@@ -47,6 +47,10 @@ svg_bytes = typst.compile("hello.typ", format="svg", pretty=True)
 # Multiple compatible PDF standards can be requested at once.
 pdf_bytes = typst.compile("hello.typ", pdf_standards=["a-2a", "ua-1"])
 
+# Skip PDF accessibility tags for smaller files, like the CLI's --no-pdf-tags.
+# Tags cannot be disabled for PDF/A-1a, PDF/A-2a, PDF/A-3a, and PDF/UA-1.
+pdf_bytes = typst.compile("hello.typ", pdf_tags=False)
+
 # For multi-page export (the template is the same as the typst cli)
 images = typst.compile("hello.typ", output="hello{n}.png", format="png")
 
