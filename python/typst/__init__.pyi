@@ -154,6 +154,22 @@ class Compiler:
             Optional[Union[bytes, List[bytes]]]: Return the compiled file as `bytes` if output is `None`.
         """
 
+    def watch(
+        self,
+        output: PathLike,
+        format: Optional[OutputFormat] = None,
+        ppi: Optional[float] = None,
+        pdf_standards: PDFStandards = [],
+        timestamp: Optional[CreationTimestamp] = None,
+        pretty: bool = False,
+    ) -> None:
+        """Compile this compiler's input to `output` and recompile whenever it or any file it depends on changes.
+
+        Compilation errors are printed to stderr and do not stop watching.
+        Runs until interrupted (raises `KeyboardInterrupt` on Ctrl-C).
+        Arguments are as for `compile`; `output` must be a file path.
+        """
+
     def compile_with_warnings(
         self,
         input: Optional[Input] = None,

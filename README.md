@@ -63,6 +63,21 @@ values = json.loads(typst.query("hello.typ", "<note>", field="value", one=True))
 values = json.loads(typst.eval("hello.typ", "query(<note>).first().value"))
 ```
 
+## Watch mode
+
+`Compiler.watch` recompiles whenever the input or any file it depends
+on (imports, images, data files) changes, like `typst watch`. Keep the output open in a
+viewer next to your editor:
+
+```python
+import typst
+
+# Blocks until Ctrl-C. Compilation errors are printed and do not stop watching.
+typst.Compiler("hello.typ").watch("hello.pdf")
+```
+
+It accepts the same output options as `Compiler.compile`.
+
 ## Multi-file projects
 
 You can compile multi-file Typst projects by passing a dictionary mapping filenames to

@@ -118,6 +118,18 @@ impl SystemWorld {
         self.now.take();
     }
 
+    /// Paths of the project files accessed since the last reset. Package
+    /// files are skipped, as they are immutable.
+    pub fn dependencies(&self) -> Vec<PathBuf> {
+        let slots = self.slots.lock().unwrap();
+        slots
+            .values()
+            .filter(|slot| slot.source.accessed || slot.file.accessed)
+            .filter(|slot| matches!(slot.id.root(), VirtualRoot::Project))
+            .filter_map(|slot| slot.id.vpath().realize(&self.root).ok())
+            .collect()
+    }
+
     pub(crate) fn set_now(&mut self, now: DateTime<Local>) {
         self.now.take();
         let _ = self.now.set(now);

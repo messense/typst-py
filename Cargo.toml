@@ -31,6 +31,7 @@ typst-kit = { version = "0.15.1", features = [
   "scan-fonts",
   "system-downloader",
   "system-packages",
+  "watcher",
   "vendor-openssl",
 ] }
 typst-pdf = "0.15.1"
