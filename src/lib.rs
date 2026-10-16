@@ -773,6 +773,8 @@ impl Compiler {
         #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
         pretty: bool,
     ) -> PyResult<()> {
+        // The compile/update/wait cycle is modelled on `typst watch`
+        // (typst-cli/src/watch.rs, Apache-2.0, The Typst Project Developers).
         let mut watcher = Watcher::new(Some(output.clone()))
             .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
 
