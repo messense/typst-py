@@ -44,6 +44,12 @@ def test_watch_recompiles_on_change(tmp_path: Path) -> None:
         main.write_text('#import "lib.typ": word\n#word #word')
         assert wait_for(lambda: out.read_bytes() != second)
 
+        if sys.platform == "win32":
+            # Windows can't send Ctrl-C to just the child (CTRL_C_EVENT hits
+            # the whole console, pytest included), so that part is not tested
+            # there. The finally block kills the process instead.
+            return
+
         proc.send_signal(signal.SIGINT)
         assert proc.wait(timeout=10) != 0
         assert b"KeyboardInterrupt" in proc.stderr.read()
