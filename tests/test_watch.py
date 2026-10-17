@@ -2,11 +2,13 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Callable
+from pathlib import Path
 
 CODE = "import typst, sys; typst.Compiler(sys.argv[1]).watch(sys.argv[2])"
 
 
-def wait_for(predicate, timeout=30):
+def wait_for(predicate: Callable[[], bool], timeout: float = 30) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if predicate():
@@ -15,7 +17,7 @@ def wait_for(predicate, timeout=30):
     return False
 
 
-def test_watch_recompiles_on_change(tmp_path):
+def test_watch_recompiles_on_change(tmp_path: Path) -> None:
     main = tmp_path / "main.typ"
     lib = tmp_path / "lib.typ"
     out = tmp_path / "out.svg"
