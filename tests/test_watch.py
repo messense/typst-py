@@ -50,4 +50,5 @@ def test_watch_recompiles_on_change(tmp_path: Path) -> None:
     finally:
         if proc.poll() is None:
             proc.kill()
+            proc.wait()
         proc.stderr.close()
