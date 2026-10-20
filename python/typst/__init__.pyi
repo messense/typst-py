@@ -164,6 +164,7 @@ class Compiler:
         pdf_standards: PDFStandards = [],
         timestamp: Optional[CreationTimestamp] = None,
         pretty: bool = False,
+        pdf_tags: bool = True,
     ) -> None:
         """Compile this compiler's input to `output` and recompile whenever it or any file it depends on changes.
 

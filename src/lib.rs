@@ -785,7 +785,7 @@ impl Compiler {
     /// depends on changes. Compilation errors are printed and do not stop
     /// watching. Runs until interrupted.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(name = "watch", signature = (output, format = None, ppi = None, pdf_standards = Vec::new(), timestamp = None, pretty = false))]
+    #[pyo3(name = "watch", signature = (output, format = None, ppi = None, pdf_standards = Vec::new(), timestamp = None, pretty = false, pdf_tags = true))]
     fn py_watch(
         &mut self,
         py: Python<'_>,
@@ -795,6 +795,7 @@ impl Compiler {
         #[pyo3(from_py_with = extract_pdf_standards)] pdf_standards: Vec<typst_pdf::PdfStandard>,
         #[pyo3(from_py_with = extract_creation_timestamp)] timestamp: Option<CreationTimestamp>,
         pretty: bool,
+        pdf_tags: bool,
     ) -> PyResult<()> {
         // The compile/update/wait cycle is modelled on `typst watch`
         // (typst-cli/src/watch.rs, Apache-2.0, The Typst Project Developers).
@@ -830,6 +831,7 @@ impl Compiler {
                 None,
                 timestamp.clone(),
                 pretty,
+                pdf_tags,
             ) {
                 Ok(_) => eprintln!("[typst] compiled {}", output.display()),
                 Err(err) => eprintln!("[typst] compilation failed:\n{}", err.value(py)),
