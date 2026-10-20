@@ -589,6 +589,8 @@ impl Compiler {
                 format,
             },
         );
+        // Reset the world state after query to ensure file changes are detected in next compilation
+        self.world.reset();
         match result {
             Ok(data) => Ok(data),
             Err(msg) => {
@@ -608,6 +610,8 @@ impl Compiler {
                 pretty,
             },
         );
+        // Reset the world state after eval to ensure file changes are detected in next compilation
+        self.world.reset();
         match result {
             Ok(data) => Ok(data),
             Err(msg) => Err(PyRuntimeError::new_err(msg.to_string())),
