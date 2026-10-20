@@ -1,3 +1,4 @@
+import json
 import pytest
 import typst
 
@@ -156,3 +157,23 @@ def test_compile_from_dict_main_without_extension():
     result = typst.compile(files, format="pdf")
     assert isinstance(result, bytes)
     assert result.startswith(b"%PDF-")
+
+
+def test_eval_and_query_reset_world(tmp_path):
+    """Regression test for #185: eval()/query() must reset the world so the
+    next operation re-reads changed files instead of using cached contents."""
+    main = tmp_path / "main.typ"
+    value = tmp_path / "value.txt"
+    main.write_text('#let v = read("value.txt")\n#v #metadata(v) <v>')
+    value.write_text("first")
+
+    compiler = typst.Compiler(str(main))
+
+    assert json.loads(compiler.eval("query(<v>).first().value")) == "first"
+    value.write_text("second")
+    assert json.loads(compiler.eval("query(<v>).first().value")) == "second"
+
+    value.write_text("third")
+    assert json.loads(compiler.query("<v>", field="value", one=True)) == "third"
+    value.write_text("fourth")
+    assert json.loads(compiler.eval("query(<v>).first().value")) == "fourth"
