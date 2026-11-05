@@ -12,17 +12,17 @@ readme = "README.md"
 crate-type = ["cdylib"]
 
 [dependencies]
-chrono = { version = "0.4.42", default-features = false, features = [
+chrono = { version = "0.4.45", default-features = false, features = [
   "clock",
   "std",
 ] }
-codespan-reporting = "0.13"
+codespan-reporting = "0.13.1"
 comemo = "0.5.1"
-ecow = "0.2"
-pathdiff = "0.2"
-pyo3 = { version = "0.29", features = ["abi3-py38", "chrono"] }
-rayon = "1.11.0"
-serde = { version = "1.0.228", features = ["derive"] }
+ecow = "0.2.6"
+pathdiff = "0.2.3"
+pyo3 = { version = "0.30.1", features = ["abi3-py39", "chrono"] }
+rayon = "1.12.0"
+serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 typst = "0.15.1"
@@ -40,4 +40,4 @@ typst-render = "0.15.1"
 typst-eval = "0.15.1"
 typst-html = "0.15.1"
 typst-layout = "0.15.1"
-rustc-hash = "2.1.2"
+rustc-hash = "2.1.3"
