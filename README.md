@@ -9,6 +9,8 @@ a new markup-based typesetting system that is powerful and easy to learn.
 
 ## Installation
 
+Requires Python 3.9 or newer.
+
 ```bash
 pip install typst
 ```
